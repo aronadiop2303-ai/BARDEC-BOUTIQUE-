@@ -180,7 +180,7 @@ export default function App() {
               {filteredSites.map((site) => (
                 <article className="site-card" key={site.id}>
                   <div className={`site-preview preview-${site.accent}`}>
-                    <div className="preview-browser"><span /><span /><span /><small>{site.name.toLowerCase().replaceAll(' ', '-')}.bardec.site</small></div>
+                    <div className="preview-browser"><span /><span /><span /><small>{site.name.toLowerCase().replace(/ /g, '-')}.bardec.site</small></div>
                     <div className="preview-page"><span className="preview-logo"><SiteGlyph icon={site.icon} /> {site.name}</span><div className="preview-lines"><i /><i /><i /></div><div className="preview-button" /><div className="preview-image" /></div>
                     <button className="preview-open" aria-label={`Prévisualiser ${site.name}`} onClick={() => setNotice('L’aperçu interactif sera disponible après la mise en place du moteur de rendu.')}><ExternalLink size={15} /></button>
                   </div>
