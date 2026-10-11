@@ -1,53 +1,56 @@
-# Feuille de route
+# Feuille de route BARDEC-BOUTIQUE
 
-## Phase 0 — Inspection et cadrage
-- [ ] Inspecter dépôt, branches, fichiers, workflows, variables et dépendances existantes.
-- [ ] Confirmer framework, version Node, gestionnaire de paquets, conventions et commandes de test.
-- [ ] Cartographier les projets Supabase/Vercel autorisés ; lire le schéma et les politiques sans modification.
-- [ ] Établir la frontière entre BARDEC-BOUTIQUE et BARDEC principal.
-- [ ] Rédiger les contrats d’intégration et critères d’acceptation.
+## Phase 0 — Vérifier l'existant
+- [ ] Inspecter dépôt, branche, framework, workflows et dépendances.
+- [ ] Confirmer hébergement et projets backend autorisés.
+- [ ] Définir les frontières entre constructeur, sites publiés et annuaire.
+- [ ] Décider des quotas, plans, sous-domaines et domaines personnalisés.
+- [ ] Définir critères d'acceptation.
 
-**Livrable :** rapport d’état réel et plan de travail approuvé.
+## Phase 1 — Socle multi-sites
+- [ ] Authentification, profil et espace de travail.
+- [ ] Création de site à partir d'un modèle.
+- [ ] Pages, navigation et blocs essentiels.
+- [ ] Personnalisation du logo, couleurs et typographie.
+- [ ] Brouillon, aperçu responsive et publication.
+- [ ] Isolation stricte par site et tests d'autorisation.
+- [ ] URL de prévisualisation contrôlée.
 
-## Phase 1 — Socle MVP
-- [ ] Navigation responsive et identité visuelle cohérente avec BARDEC.
-- [ ] Catalogue public, catégories, recherche, fiche produit et boutiques.
-- [ ] Authentification et profils minimaux.
-- [ ] Espace vendeur : boutique, produits, images, prix et stock.
-- [ ] Politiques d’accès et tests RLS.
-- [ ] CI avec lint, typecheck et tests.
+## Phase 2 — Publication et exploitation
+- [ ] Gestion des domaines et vérification DNS.
+- [ ] HTTPS via le fournisseur retenu.
+- [ ] Sauvegarde, historique et restauration.
+- [ ] Gestion des médias et quotas.
+- [ ] SEO de base, sitemap et métadonnées.
+- [ ] Journaux, métriques, alertes et protection contre les abus.
 
-**Critère de sortie :** visiteur peut découvrir le catalogue ; vendeur autorisé peut gérer uniquement sa boutique ; accès non autorisés bloqués.
+## Phase 3 — Annuaire BARDEC Découverte
+- [ ] Fiche publique créée avec consentement.
+- [ ] Recherche, catégories, filtres et pages de résultats.
+- [ ] Page de présentation et lien de visite.
+- [ ] Modération, signalement et retrait de l'annuaire.
+- [ ] Indexation des seules données explicitement publiques.
+- [ ] Protection contre spam, faux avis et sites malveillants.
 
-## Phase 2 — Commande
-- [ ] Panier et calcul des totaux côté serveur.
-- [ ] Réservation de stock transactionnelle.
-- [ ] Commandes et historique par utilisateur.
-- [ ] Notifications d’état sans exposer de données sensibles.
-- [ ] Tests de concurrence et de double soumission.
+## Phase 4 — Modules métiers initiaux
+- [ ] Site vitrine et formulaires.
+- [ ] Catalogue de produits et demandes de commande simples.
+- [ ] Présentation d'école et formulaire d'admission.
+- [ ] Annonces immobilières et demandes de visite.
+- [ ] Modules versionnés avec permissions propres.
 
-**Critère de sortie :** les totaux et états sont cohérents même lors de requêtes répétées ou simultanées.
+## Phase 5 — Commerce et services avancés
+- [ ] Panier, commandes, stock et intégrations de paiement vérifiées.
+- [ ] Réservation et calendrier.
+- [ ] Modules métier avancés selon besoins validés.
+- [ ] Connexion de domaines via fournisseurs compatibles.
+- [ ] Facturation, abonnements, quotas et consommation.
 
-## Phase 3 — Paiement et livraison
-- [ ] Choisir un prestataire après vérification disponibilité, frais, conformité et contrat.
-- [ ] Adapter l’intégration via interface fournisseur.
-- [ ] Webhooks signés, idempotence et rapprochement.
-- [ ] Suivi livraison/retrait et preuve de remise à accès restreint.
-- [ ] Annulation, retour, remboursement et litiges avec règles explicites.
+## Phase 6 — Extension
+- [ ] Bibliothèque de thèmes et blocs partageables.
+- [ ] Marketplace de modèles, extensions et services après mise en place de la gouvernance.
+- [ ] API documentée et intégrations tierces.
+- [ ] Internationalisation et expansion régionale.
+- [ ] Assistants IA de création, avec aperçu et validation humaine.
 
-**Critère de sortie :** aucun statut financier n’est accepté sur simple signal du client.
-
-## Phase 4 — Pilote contrôlé
-- [ ] Tests fonctionnels, sécurité, accessibilité, performance et réseau faible.
-- [ ] Données et comptes de test ; procédure de support.
-- [ ] Pilote limité à une zone et à des vendeurs vérifiés.
-- [ ] Monitoring, sauvegardes et procédure de rollback.
-- [ ] Revue des obligations légales et contractuelles.
-
-## Phase 5 — Évolution
-- [ ] PWA/mobile selon les retours réels.
-- [ ] Points relais, achats groupés, promotions et multi-vendeurs selon besoin validé.
-- [ ] Analytique agrégée, fidélité et recommandations avec consentement.
-- [ ] Internationalisation et extension géographique progressive.
-
-Les cases ne seront cochées qu’après vérification effective ; la présence de ce document ne signifie pas que ces fonctions sont développées.
+Ne cocher une tâche qu'après implémentation et vérification réelle. Cette feuille de route ne signifie pas que ces fonctionnalités sont déjà disponibles.
