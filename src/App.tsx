@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import {
-  ArrowDownRight,
   ArrowUpRight,
   Bell,
   BookOpen,
