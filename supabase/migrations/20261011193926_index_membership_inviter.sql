@@ -1,0 +1,1 @@
+create index workspace_memberships_invited_by_idx on public.workspace_memberships(invited_by);
