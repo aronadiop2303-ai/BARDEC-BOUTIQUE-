@@ -49,6 +49,7 @@ npm run build
 
 ## Architecture et sécurité
 
+- [Vision, architecture cible et progression](docs/VISION-ET-PROGRESSION.md)
 - [Vision et architecture produit](docs/PLATFORM-VISION.md)
 - [Architecture technique](docs/ARCHITECTURE.md)
 - [Sécurité et confidentialité](docs/SECURITY.md)
