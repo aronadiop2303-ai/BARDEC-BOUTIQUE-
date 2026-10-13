@@ -2,8 +2,6 @@ import { useMemo, useState } from 'react'
 import {
   ArrowUpRight,
   Bell,
-  BookOpen,
-  BriefcaseBusiness,
   Check,
   ChevronDown,
   CircleHelp,
@@ -24,6 +22,9 @@ import {
   WandSparkles,
   X,
 } from 'lucide-react'
+import CreateSiteWizard, { type CreateSitePayload } from './components/CreateSiteWizard'
+import { formatCategoryPath, resolveSiteType } from './lib/catalog'
+import { useCategories } from './lib/useCategories'
 
 type Site = {
   id: number
@@ -41,15 +42,6 @@ const initialSites: Site[] = [
   { id: 3, name: 'Diop Immobilier', category: 'Immobilier', status: 'Brouillon', updated: 'Modifié le 8 oct.', accent: 'sand', icon: 'business' },
 ]
 
-const templates = [
-  { label: 'Site vitrine', description: 'Présentez votre activité et vos services.', icon: BriefcaseBusiness, color: 'template-blue' },
-  { label: 'Commerce', description: 'Un catalogue pour vos produits et votre boutique.', icon: ShoppingBag, color: 'template-mint' },
-  { label: 'Éducation', description: 'Un site pour une école ou un centre de formation.', icon: GraduationCap, color: 'template-violet' },
-  { label: 'Immobilier', description: 'Présentez des biens et recevez des demandes.', icon: Globe2, color: 'template-sand' },
-  { label: 'Portfolio / Média', description: 'Publiez vos créations, articles et actualités.', icon: BookOpen, color: 'template-pink' },
-  { label: 'Personnalisé', description: 'Commencez simplement et choisissez vos blocs.', icon: WandSparkles, color: 'template-dark' },
-]
-
 function SiteGlyph({ icon }: { icon: Site['icon'] }) {
   if (icon === 'school') return <GraduationCap size={22} />
   if (icon === 'business') return <Globe2 size={22} />
@@ -59,8 +51,7 @@ function SiteGlyph({ icon }: { icon: Site['icon'] }) {
 export default function App() {
   const [sites, setSites] = useState(initialSites)
   const [createOpen, setCreateOpen] = useState(false)
-  const [selectedTemplate, setSelectedTemplate] = useState('Site vitrine')
-  const [siteName, setSiteName] = useState('')
+  const categories = useCategories()
   const [query, setQuery] = useState('')
   const [notice, setNotice] = useState('')
   const [activeNav, setActiveNav] = useState('Vue d’ensemble')
@@ -69,26 +60,21 @@ export default function App() {
     [sites, query],
   )
 
-  function createSite() {
-    const cleanName = siteName.trim()
-    if (!cleanName) {
-      setNotice('Donnez un nom à votre site pour continuer.')
-      return
-    }
+  function createSite({ name, path }: CreateSitePayload) {
+    const siteType = resolveSiteType(path)
     const newSite: Site = {
       id: Date.now(),
-      name: cleanName,
-      category: selectedTemplate,
+      name,
+      category: path.length > 0 ? formatCategoryPath(path) : 'Personnalisé',
       status: 'Brouillon',
       updated: 'Créé à l’instant',
       accent: ['mint', 'blue', 'sand'][sites.length % 3],
-      icon: selectedTemplate === 'Éducation' ? 'school' : selectedTemplate === 'Commerce' ? 'store' : 'business',
+      icon: siteType === 'school' ? 'school' : siteType === 'store' ? 'store' : 'business',
     }
     setSites((current) => [newSite, ...current])
     setCreateOpen(false)
-    setSiteName('')
     setQuery('')
-    setNotice(`« ${cleanName} » a été ajouté à vos projets locaux. La publication réelle n’est pas encore connectée.`)
+    setNotice(`« ${name} » a été ajouté à vos projets locaux. La sauvegarde en base et la publication nécessitent l’authentification, qui n’est pas encore connectée.`)
   }
 
   return (
@@ -170,7 +156,7 @@ export default function App() {
           <section className="stats-grid" aria-label="Résumé de l’espace">
             <article className="stat-card"><div className="stat-icon stat-blue"><Globe2 size={18} /></div><span className="stat-label">Sites dans mon espace</span><strong>{sites.length.toString().padStart(2, '0')}</strong><small><ArrowUpRight size={13} /> Vos projets web</small></article>
             <article className="stat-card"><div className="stat-icon stat-green"><Check size={18} /></div><span className="stat-label">Sites publiés</span><strong>{sites.filter((site) => site.status === 'Publié').length.toString().padStart(2, '0')}</strong><small>Publication simulée uniquement</small></article>
-            <article className="stat-card"><div className="stat-icon stat-purple"><WandSparkles size={18} /></div><span className="stat-label">Modèles disponibles</span><strong>06</strong><small>Points de départ du prototype</small></article>
+            <article className="stat-card"><div className="stat-icon stat-purple"><WandSparkles size={18} /></div><span className="stat-label">Domaines d’activité</span><strong>{categories.status === 'ready' ? categories.tree.length.toString().padStart(2, '0') : '—'}</strong><small>{categories.status === 'ready' ? 'Catalogue connecté' : 'Catalogue non connecté'}</small></article>
           </section>
 
           <section className="sites-section">
@@ -195,15 +181,7 @@ export default function App() {
         </div>
       </main>
 
-      {createOpen && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreateOpen(false) }}>
-        <section className="create-modal" role="dialog" aria-modal="true" aria-labelledby="create-title">
-          <div className="modal-header"><div><span className="eyebrow">NOUVEAU PROJET</span><h2 id="create-title">Quel site voulez-vous créer ?</h2><p>Choisissez un point de départ. Vous pourrez le personnaliser ensuite.</p></div><button className="icon-button" aria-label="Fermer" onClick={() => setCreateOpen(false)}><X size={19} /></button></div>
-          <div className="template-grid">{templates.map(({ label, description, icon: Icon, color }) => <button key={label} className={selectedTemplate === label ? 'template-option selected' : 'template-option'} onClick={() => setSelectedTemplate(label)}><span className={`template-icon ${color}`}><Icon size={21} /></span><span className="template-text"><strong>{label}</strong><small>{description}</small></span><span className="template-check">{selectedTemplate === label && <Check size={14} />}</span></button>)}</div>
-          <label className="field-label" htmlFor="site-name">Nom de votre site</label><input id="site-name" className="name-input" autoFocus value={siteName} onChange={(event) => setSiteName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') createSite() }} placeholder="Ex. : Ma nouvelle activité" />
-          <div className="modal-footnote"><Sparkles size={15} /><span>Vous commencerez en brouillon. La publication en ligne sera ajoutée après le socle de création.</span></div>
-          <div className="modal-actions"><button className="secondary-button" onClick={() => setCreateOpen(false)}>Annuler</button><button className="primary-button" onClick={createSite}><Plus size={17} /> Créer le brouillon</button></div>
-        </section>
-      </div>}
+      <CreateSiteWizard open={createOpen} categories={categories} onClose={() => setCreateOpen(false)} onCreate={createSite} />
     </div>
   )
 }

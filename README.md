@@ -18,15 +18,14 @@ Exemples : site vitrine, boutique, site d'école, immobilier, services, portfoli
 4. **Publier** — d'abord sur un sous-domaine contrôlé, puis sur un domaine personnalisé après vérification technique.
 5. **Découvrir** — permettre au propriétaire de choisir si sa fiche doit apparaître dans l'annuaire BARDEC Découverte.
 
-## Prototype Studio — branche `feat/studio-mvp-foundation`
+## Prototype Studio
 
-Cette branche pose une première interface React + TypeScript + Vite :
+Interface React + TypeScript + Vite :
 - tableau de bord de démonstration ;
-- exemples de sites et recherche locale ;
-- fenêtre de création avec choix de modèles ;
-- création de brouillons conservée uniquement dans l'état de la page.
+- **parcours guidé « Créer un site »** : domaine → sous-domaine → spécialité → nom, alimenté par le catalogue d'activités de Supabase (table `site_categories`, lecture seule). L'utilisateur peut s'arrêter à n'importe quel niveau ou partir de zéro (« Personnalisé ») ;
+- les brouillons créés restent conservés uniquement dans l'état de la page.
 
-**Limites importantes :** l'interface est un prototype local. Elle n'inclut pas encore de compte réel, de base de données, de sauvegarde persistante, d'éditeur de pages, de publication, d'hébergement de sites, de domaines, ni d'annuaire connecté. Les sites et compteurs affichés sont des données de démonstration. Aucun backend ni projet externe n'est connecté.
+**Limites importantes :** les 3 sites affichés au départ sont des données de démonstration. Il n'y a pas encore de compte réel, d'authentification, de sauvegarde en base, d'éditeur de pages, d'application des modèles, de publication, d'hébergement, de domaines ni d'annuaire connecté. Seule la **lecture** du catalogue d'activités est connectée à Supabase ; si les variables d'environnement manquent ou si la lecture échoue, le parcours l'indique et propose un projet personnalisé (aucune donnée de remplacement n'est inventée).
 
 ## Démarrer en local
 
@@ -34,12 +33,16 @@ Prérequis : Node.js LTS et npm.
 
 ```bash
 npm install
+cp .env.example .env.local   # puis renseigner VITE_SUPABASE_PUBLISHABLE_KEY
 npm run dev
 ```
+
+Sans `.env.local`, le Studio démarre mais le catalogue d'activités n'est pas connecté.
 
 Vérifications de projet :
 
 ```bash
+npm test
 npm run typecheck
 npm run build
 ```
@@ -50,6 +53,7 @@ npm run build
 - [Architecture technique](docs/ARCHITECTURE.md)
 - [Sécurité et confidentialité](docs/SECURITY.md)
 - [Feuille de route](docs/ROADMAP.md)
+- [Base de données](docs/DATABASE.md)
 - [Contrats d'intégration](docs/INTEGRATIONS.md)
 
 ## Principes fondateurs
