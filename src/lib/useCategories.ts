@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchCategoryTree, type CategoryNode } from './catalog'
-import { isSupabaseConfigured, supabase } from './supabase'
+import { isSupabaseConfigured, supabase, supabaseInitError } from './supabase'
 
 export type CategoriesState =
   | { status: 'loading'; tree: CategoryNode[] }
@@ -10,9 +10,10 @@ export type CategoriesState =
 
 /** Charge le catalogue d'activités une seule fois au démarrage du Studio. */
 export function useCategories(): CategoriesState {
-  const [state, setState] = useState<CategoriesState>(
-    isSupabaseConfigured ? { status: 'loading', tree: [] } : { status: 'unconfigured', tree: [] },
-  )
+  const [state, setState] = useState<CategoriesState>(() => {
+    if (supabaseInitError) return { status: 'error', tree: [], message: supabaseInitError }
+    return isSupabaseConfigured ? { status: 'loading', tree: [] } : { status: 'unconfigured', tree: [] }
+  })
 
   useEffect(() => {
     if (!supabase) return
