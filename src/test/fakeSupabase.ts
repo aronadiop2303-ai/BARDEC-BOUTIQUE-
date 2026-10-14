@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export type FakeResult = { data?: unknown; error?: { code?: string; message: string } | null }
+export type FakeResult = { data?: unknown; error?: { code?: string; message: string } | null; count?: number }
 export type RecordedQuery = { table: string; ops: Array<[string, unknown[]]> }
 
 /**
@@ -20,7 +20,7 @@ export function fakeSupabase(responses: FakeResult[]) {
         if (prop === 'then') {
           const next = queue.shift()
           if (!next) throw new Error(`Réponse manquante pour la requête sur « ${table} »`)
-          const result = { data: next.data ?? null, error: next.error ?? null }
+          const result = { data: next.data ?? null, error: next.error ?? null, count: next.count ?? null }
           return (resolve: (value: unknown) => unknown) => resolve(result)
         }
         return (...args: unknown[]) => {
