@@ -60,12 +60,12 @@ describe('configuration initiale', () => {
   }
 
   it('écrit profil, emplacements, familles, unités, module et réglages', async () => {
-    const fake = fakeSupabase([{}, { data: [] }, {}, {}, {}, {}, {}])
+    const fake = fakeSupabase([{ data: [] }, {}, {}, {}, {}, {}, {}])
     await runSetup(fake.client, SITE, 'u1', input)
     expect(fake.queries.map((q) => q.table)).toEqual([
-      'business_profiles', 'stock_locations', 'stock_locations', 'product_categories', 'product_units', 'site_commerce_modules', 'store_document_settings',
+      'stock_locations', 'business_profiles', 'stock_locations', 'product_categories', 'product_units', 'site_commerce_modules', 'store_document_settings',
     ])
-    const profile = fake.op(fake.queries[0], 'upsert')
+    const profile = fake.op(fake.queries[1], 'upsert')
     expect(profile?.[0]).toMatchObject({ site_id: SITE, public_name: 'Quincaillerie Diop', currency_code: 'XOF', whatsapp: null, opening_hours: { text: 'Lun–Sam 8h–19h' } })
     expect(profile?.[1]).toEqual({ onConflict: 'site_id' })
     expect((fake.op(fake.queries[2], 'insert')?.[0] as unknown[]).length).toBe(2)
@@ -76,14 +76,25 @@ describe('configuration initiale', () => {
   })
 
   it('est idempotente : une relance n’ajoute pas d’emplacement existant', async () => {
-    const fake = fakeSupabase([{}, { data: [{ name: 'Magasin' }, { name: ' dépôt ' }] }, {}, {}, {}, {}])
+    const fake = fakeSupabase([{ data: [{ name: 'Magasin' }, { name: ' dépôt ' }] }, {}, {}, {}, {}, {}])
     await runSetup(fake.client, SITE, 'u1', input)
     expect(fake.queries.filter((q) => fake.op(q, 'insert'))).toHaveLength(0)
     expect(fake.queries.some((q) => fake.op(q, 'delete'))).toBe(false)
   })
 
-  it('refuse une configuration sans emplacement ou sans nom', async () => {
-    await expect(runSetup(fakeSupabase([]).client, SITE, 'u1', { ...input, locations: [] })).rejects.toThrow('emplacement')
+  it('accepte une relance sans nouvel emplacement si la boutique en a déjà', async () => {
+    const fake = fakeSupabase([{ data: [{ name: 'Magasin' }] }, {}, {}, {}, {}, {}])
+    await runSetup(fake.client, SITE, 'u1', { ...input, locations: [] })
+    expect(fake.remaining()).toBe(0)
+  })
+
+  it('refuse une configuration sans emplacement ou sans nom, avant toute écriture', async () => {
+    const empty = fakeSupabase([{ data: [] }])
+    await expect(runSetup(empty.client, SITE, 'u1', { ...input, locations: [] })).rejects.toThrow('emplacement')
+    expect(empty.queries).toHaveLength(1)
+    const noName = fakeSupabase([])
+    await expect(runSetup(noName.client, SITE, 'u1', { ...input, profile: { ...input.profile, public_name: '' } })).rejects.toThrow('obligatoire')
+    expect(noName.queries).toHaveLength(0)
     expect(validateProfile({ ...input.profile, public_name: '  ' })).toContain('obligatoire')
     expect(validateProfile({ ...input.profile, phone: 'abc' })).toContain('téléphone')
   })

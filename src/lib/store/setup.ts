@@ -105,11 +105,14 @@ export type SetupInput = {
  * Nécessite le rôle propriétaire ou admin (RLS des modules et des réglages de documents).
  */
 export async function runSetup(client: SupabaseClient, siteId: string, userId: string, input: SetupInput): Promise<void> {
-  if (input.locations.length === 0) throw new Error('Choisissez au moins un emplacement de stock.')
-  await saveBusinessProfile(client, siteId, input.profile)
+  const problem = validateProfile(input.profile)
+  if (problem) throw new Error(problem)
 
   const existing = await client.from('stock_locations').select('name').eq('site_id', siteId)
   if (existing.error) throw toError(existing.error)
+  if (input.locations.length === 0 && (existing.data ?? []).length === 0) throw new Error('Choisissez au moins un emplacement de stock.')
+
+  await saveBusinessProfile(client, siteId, input.profile)
   const taken = new Set(((existing.data ?? []) as { name: string }[]).map((row) => row.name.trim().toLowerCase()))
   const newLocations = STARTER_LOCATIONS
     .filter((location) => input.locations.includes(location.key) && !taken.has(location.name.toLowerCase()))
