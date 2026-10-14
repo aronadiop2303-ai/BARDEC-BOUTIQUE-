@@ -26,7 +26,10 @@ import {
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import AuthGate from './components/AuthGate'
 import CreateSiteWizard, { type CreateSitePayload } from './components/CreateSiteWizard'
+import BoutiquePage from './features/boutique/BoutiquePage'
 import { signOut } from './lib/auth'
+import { boutiquePath, navigate, useRoute } from './lib/router'
+import { HARDWARE_CATEGORY_SLUG } from './lib/store/access'
 import { findCategoryPath, formatCategoryPath, resolveSiteType, type CategoryNode } from './lib/catalog'
 import type { SiteRow } from './lib/sites'
 import { supabase, supabaseInitError } from './lib/supabase'
@@ -43,14 +46,16 @@ type Site = {
   updated: string
   accent: string
   icon: 'store' | 'school' | 'business'
+  /** Site rangé sous Commerce › Magasin › Quincaillerie : « Ouvrir » mène à l'espace de gestion. */
+  hardware: boolean
 }
 
 const ACCENTS = ['mint', 'blue', 'sand']
 
 const initialSites: Site[] = [
-  { id: 'demo-1', name: 'Ma boutique', slug: 'ma-boutique', category: 'Commerce', status: 'Brouillon', updated: 'Modifié aujourd’hui', accent: 'mint', icon: 'store' },
-  { id: 'demo-2', name: 'École Excellence', slug: 'ecole-excellence', category: 'Éducation', status: 'Publié', updated: 'Modifié hier', accent: 'blue', icon: 'school' },
-  { id: 'demo-3', name: 'Diop Immobilier', slug: 'diop-immobilier', category: 'Immobilier', status: 'Brouillon', updated: 'Modifié le 8 oct.', accent: 'sand', icon: 'business' },
+  { id: 'demo-1', name: 'Ma boutique', slug: 'ma-boutique', category: 'Commerce', status: 'Brouillon', updated: 'Modifié aujourd’hui', accent: 'mint', icon: 'store', hardware: false },
+  { id: 'demo-2', name: 'École Excellence', slug: 'ecole-excellence', category: 'Éducation', status: 'Publié', updated: 'Modifié hier', accent: 'blue', icon: 'school', hardware: false },
+  { id: 'demo-3', name: 'Diop Immobilier', slug: 'diop-immobilier', category: 'Immobilier', status: 'Brouillon', updated: 'Modifié le 8 oct.', accent: 'sand', icon: 'business', hardware: false },
 ]
 
 const iconFor = (siteType: string): Site['icon'] => (siteType === 'school' ? 'school' : siteType === 'store' ? 'store' : 'business')
@@ -70,6 +75,7 @@ function toCard(row: SiteRow, index: number, tree: CategoryNode[]): Site {
     updated: `Modifié le ${shortDate.format(new Date(row.updated_at))}`,
     accent: ACCENTS[index % ACCENTS.length],
     icon: iconFor(row.site_type),
+    hardware: path.some((node) => node.slug === HARDWARE_CATEGORY_SLUG),
   }
 }
 
@@ -81,11 +87,34 @@ function SiteGlyph({ icon }: { icon: Site['icon'] }) {
 
 export default function App() {
   const session = useSession(supabase)
+  const route = useRoute()
   return (
     <AuthGate session={session} client={supabase} initError={supabaseInitError}>
-      {(mode) => mode.mode === 'connected'
-        ? <ConnectedStudio key={mode.user.id} client={mode.client} user={mode.user} />
-        : <Studio localReason={mode.reason} />}
+      {(mode) => {
+        if (route.name !== 'home') {
+          if (mode.mode !== 'connected') {
+            return (
+              <div className="empty-state" role="alert">
+                <strong>Mode local : l’espace de gestion nécessite une connexion à Supabase.</strong>
+                <a className="text-button" href="#/">Retour au Studio</a>
+              </div>
+            )
+          }
+          return (
+            <BoutiquePage
+              key={`${mode.user.id}:${route.siteId}`}
+              client={mode.client}
+              userId={mode.user.id}
+              siteId={route.siteId}
+              section={route.name === 'boutique' ? route.section : 'tableau-de-bord'}
+              itemId={route.name === 'boutique' ? route.itemId : null}
+            />
+          )
+        }
+        return mode.mode === 'connected'
+          ? <ConnectedStudio key={mode.user.id} client={mode.client} user={mode.user} />
+          : <Studio localReason={mode.reason} />
+      }}
     </AuthGate>
   )
 }
@@ -134,6 +163,7 @@ function Studio({ connected, localReason }: { connected?: Connected; localReason
         updated: 'Créé à l’instant',
         accent: ACCENTS[demoSites.length % ACCENTS.length],
         icon: iconFor(siteType),
+        hardware: false,
       }
       setDemoSites((current) => [newSite, ...current])
       setCreateOpen(false)
@@ -159,6 +189,14 @@ function Studio({ connected, localReason }: { connected?: Connected; localReason
     } finally {
       setCreating(false)
     }
+  }
+
+  function openSite(site: Site) {
+    if (!connected) {
+      setNotice('Mode local : connectez Supabase pour ouvrir un site et gérer une boutique.')
+      return
+    }
+    navigate(site.hardware ? boutiquePath(site.id) : `#/site/${site.id}`)
   }
 
   async function handleSignOut() {
@@ -270,7 +308,7 @@ function Studio({ connected, localReason }: { connected?: Connected; localReason
                     <div className="preview-page"><span className="preview-logo"><SiteGlyph icon={site.icon} /> {site.name}</span><div className="preview-lines"><i /><i /><i /></div><div className="preview-button" /><div className="preview-image" /></div>
                     <button className="preview-open" aria-label={`Prévisualiser ${site.name}`} onClick={() => setNotice('L’aperçu interactif sera disponible après la mise en place du moteur de rendu.')}><ExternalLink size={15} /></button>
                   </div>
-                  <div className="site-card-body"><div className="site-title-row"><span className={`site-icon icon-${site.accent}`}><SiteGlyph icon={site.icon} /></span><button className="more-button" aria-label={`Options de ${site.name}`} onClick={() => setNotice('Les actions de gestion seront ajoutées dans la prochaine étape.')}><MoreHorizontal size={18} /></button></div><h3>{site.name}</h3><p>{site.category} <span>·</span> {site.updated}</p><div className="site-card-footer"><span className={site.status === 'Publié' ? 'status status-published' : 'status status-draft'}><span />{site.status}</span><span style={{ display: 'flex', gap: 10 }}><button className="edit-button" disabled title="Publication simulée : la mise en ligne n’est pas encore disponible.">Publier</button><button className="edit-button" onClick={() => setNotice(`L’éditeur de « ${site.name} » sera la prochaine fonctionnalité à construire.`)}>Ouvrir <ArrowUpRight size={14} /></button></span></div></div>
+                  <div className="site-card-body"><div className="site-title-row"><span className={`site-icon icon-${site.accent}`}><SiteGlyph icon={site.icon} /></span><button className="more-button" aria-label={`Options de ${site.name}`} onClick={() => setNotice('Les actions de gestion seront ajoutées dans la prochaine étape.')}><MoreHorizontal size={18} /></button></div><h3>{site.name}</h3><p>{site.category} <span>·</span> {site.updated}</p><div className="site-card-footer"><span className={site.status === 'Publié' ? 'status status-published' : 'status status-draft'}><span />{site.status}</span><span style={{ display: 'flex', gap: 10 }}><button className="edit-button" disabled title="Publication simulée : la mise en ligne n’est pas encore disponible.">Publier</button><button className="edit-button" onClick={() => openSite(site)}>Ouvrir <ArrowUpRight size={14} /></button></span></div></div>
                 </article>
               ))}
               <button className="new-site-card" onClick={() => setCreateOpen(true)}><span className="new-site-icon"><Plus size={22} /></span><strong>Créer un nouveau site</strong><span>Choisissez un modèle et donnez vie à votre projet.</span></button>
