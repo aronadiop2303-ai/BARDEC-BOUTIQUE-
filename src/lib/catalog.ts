@@ -45,6 +45,16 @@ export function formatCategoryPath(path: CategoryNode[]): string {
   return path.map((node) => node.name).join(' › ')
 }
 
+/** Chemin racine → catégorie (vide si l'identifiant est absent de l'arbre). */
+export function findCategoryPath(tree: CategoryNode[], id: string): CategoryNode[] {
+  for (const node of tree) {
+    if (node.id === id) return [node]
+    const sub = findCategoryPath(node.children, id)
+    if (sub.length > 0) return [node, ...sub]
+  }
+  return []
+}
+
 /** Famille de site (sites.site_type) déduite de la catégorie la plus précise qui en déclare une. */
 export function resolveSiteType(path: CategoryNode[]): string {
   for (let i = path.length - 1; i >= 0; i -= 1) {

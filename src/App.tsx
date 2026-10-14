@@ -11,6 +11,7 @@ import {
   Globe2,
   GraduationCap,
   LayoutDashboard,
+  LogOut,
   Menu,
   MoreHorizontal,
   Plus,
@@ -22,25 +23,55 @@ import {
   WandSparkles,
   X,
 } from 'lucide-react'
+import type { SupabaseClient, User } from '@supabase/supabase-js'
+import AuthGate from './components/AuthGate'
 import CreateSiteWizard, { type CreateSitePayload } from './components/CreateSiteWizard'
-import { formatCategoryPath, resolveSiteType } from './lib/catalog'
+import { signOut } from './lib/auth'
+import { findCategoryPath, formatCategoryPath, resolveSiteType, type CategoryNode } from './lib/catalog'
+import type { SiteRow } from './lib/sites'
+import { supabase, supabaseInitError } from './lib/supabase'
 import { useCategories } from './lib/useCategories'
+import { useSession } from './lib/useSession'
+import { useStudioData } from './lib/useStudioData'
 
 type Site = {
-  id: number
+  id: string
   name: string
+  slug: string
   category: string
-  status: 'Brouillon' | 'Publié'
+  status: 'Brouillon' | 'Publié' | 'Archivé'
   updated: string
   accent: string
   icon: 'store' | 'school' | 'business'
 }
 
+const ACCENTS = ['mint', 'blue', 'sand']
+
 const initialSites: Site[] = [
-  { id: 1, name: 'Ma boutique', category: 'Commerce', status: 'Brouillon', updated: 'Modifié aujourd’hui', accent: 'mint', icon: 'store' },
-  { id: 2, name: 'École Excellence', category: 'Éducation', status: 'Publié', updated: 'Modifié hier', accent: 'blue', icon: 'school' },
-  { id: 3, name: 'Diop Immobilier', category: 'Immobilier', status: 'Brouillon', updated: 'Modifié le 8 oct.', accent: 'sand', icon: 'business' },
+  { id: 'demo-1', name: 'Ma boutique', slug: 'ma-boutique', category: 'Commerce', status: 'Brouillon', updated: 'Modifié aujourd’hui', accent: 'mint', icon: 'store' },
+  { id: 'demo-2', name: 'École Excellence', slug: 'ecole-excellence', category: 'Éducation', status: 'Publié', updated: 'Modifié hier', accent: 'blue', icon: 'school' },
+  { id: 'demo-3', name: 'Diop Immobilier', slug: 'diop-immobilier', category: 'Immobilier', status: 'Brouillon', updated: 'Modifié le 8 oct.', accent: 'sand', icon: 'business' },
 ]
+
+const iconFor = (siteType: string): Site['icon'] => (siteType === 'school' ? 'school' : siteType === 'store' ? 'store' : 'business')
+
+const STATUS_LABELS: Record<SiteRow['status'], Site['status']> = { draft: 'Brouillon', published: 'Publié', archived: 'Archivé' }
+
+const shortDate = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' })
+
+function toCard(row: SiteRow, index: number, tree: CategoryNode[]): Site {
+  const path = row.category_id ? findCategoryPath(tree, row.category_id) : []
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    category: path.length > 0 ? formatCategoryPath(path) : row.category_id ? 'Catégorie' : 'Personnalisé',
+    status: STATUS_LABELS[row.status],
+    updated: `Modifié le ${shortDate.format(new Date(row.updated_at))}`,
+    accent: ACCENTS[index % ACCENTS.length],
+    icon: iconFor(row.site_type),
+  }
+}
 
 function SiteGlyph({ icon }: { icon: Site['icon'] }) {
   if (icon === 'school') return <GraduationCap size={22} />
@@ -49,32 +80,91 @@ function SiteGlyph({ icon }: { icon: Site['icon'] }) {
 }
 
 export default function App() {
-  const [sites, setSites] = useState(initialSites)
+  const session = useSession(supabase)
+  return (
+    <AuthGate session={session} client={supabase} initError={supabaseInitError}>
+      {(mode) => mode.mode === 'connected'
+        ? <ConnectedStudio key={mode.user.id} client={mode.client} user={mode.user} />
+        : <Studio localReason={mode.reason} />}
+    </AuthGate>
+  )
+}
+
+function ConnectedStudio({ client, user }: { client: SupabaseClient; user: User }) {
+  const data = useStudioData(client, user.id)
+  return <Studio connected={{ client, user, data }} />
+}
+
+type Connected = { client: SupabaseClient; user: User; data: ReturnType<typeof useStudioData> }
+
+function Studio({ connected, localReason }: { connected?: Connected; localReason?: string }) {
+  const [demoSites, setDemoSites] = useState(initialSites)
   const [createOpen, setCreateOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
   const categories = useCategories()
   const [query, setQuery] = useState('')
-  const [notice, setNotice] = useState('')
+  const [notice, setNotice] = useState(localReason ? `Mode local — ${localReason}` : '')
   const [activeNav, setActiveNav] = useState('Vue d’ensemble')
+
+  const dataState = connected?.data.state
+  const sites = useMemo<Site[]>(() => {
+    if (!dataState) return demoSites
+    if (dataState.status !== 'ready') return []
+    return dataState.sites.map((row, index) => toCard(row, index, categories.tree))
+  }, [dataState, demoSites, categories.tree])
+
   const filteredSites = useMemo(
     () => sites.filter((site) => `${site.name} ${site.category} ${site.status}`.toLowerCase().includes(query.toLowerCase())),
     [sites, query],
   )
 
-  function createSite({ name, path }: CreateSitePayload) {
+  const workspaceName = dataState?.status === 'ready' ? dataState.workspace.name : 'Mon espace'
+  const email = connected?.user.email ?? ''
+  const initials = connected ? (email.slice(0, 2).toUpperCase() || 'MO') : 'AD'
+
+  async function createSite({ name, path }: CreateSitePayload) {
     const siteType = resolveSiteType(path)
-    const newSite: Site = {
-      id: Date.now(),
-      name,
-      category: path.length > 0 ? formatCategoryPath(path) : 'Personnalisé',
-      status: 'Brouillon',
-      updated: 'Créé à l’instant',
-      accent: ['mint', 'blue', 'sand'][sites.length % 3],
-      icon: siteType === 'school' ? 'school' : siteType === 'store' ? 'store' : 'business',
+    if (!connected) {
+      const newSite: Site = {
+        id: `demo-${Date.now()}`,
+        name,
+        slug: name.toLowerCase().replace(/ /g, '-'),
+        category: path.length > 0 ? formatCategoryPath(path) : 'Personnalisé',
+        status: 'Brouillon',
+        updated: 'Créé à l’instant',
+        accent: ACCENTS[demoSites.length % ACCENTS.length],
+        icon: iconFor(siteType),
+      }
+      setDemoSites((current) => [newSite, ...current])
+      setCreateOpen(false)
+      setQuery('')
+      setNotice(`« ${name} » a été ajouté à vos projets locaux (mode local : rien n’est enregistré en base).`)
+      return
     }
-    setSites((current) => [newSite, ...current])
-    setCreateOpen(false)
-    setQuery('')
-    setNotice(`« ${name} » a été ajouté à vos projets locaux. La sauvegarde en base et la publication nécessitent l’authentification, qui n’est pas encore connectée.`)
+
+    if (creating) return
+    setCreating(true)
+    try {
+      await connected.data.addSite({
+        name,
+        categoryId: path.length > 0 ? path[path.length - 1].id : null,
+        siteType,
+      })
+      setCreateOpen(false)
+      setQuery('')
+      setNotice(`« ${name} » est enregistré en brouillon dans votre espace. Publication simulée : rien n’est mis en ligne.`)
+    } catch (error) {
+      setCreateOpen(false)
+      setNotice(`Le site n’a pas pu être enregistré : ${error instanceof Error ? error.message : 'erreur inconnue'}`)
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  async function handleSignOut() {
+    if (!connected) return
+    const outcome = await signOut(connected.client)
+    if (!outcome.ok) setNotice(outcome.message)
   }
 
   return (
@@ -86,7 +176,7 @@ export default function App() {
         </a>
         <div className="workspace-switch">
           <span className="workspace-avatar">A</span>
-          <span className="workspace-label"><strong>Mon espace</strong><small>Espace personnel</small></span>
+          <span className="workspace-label"><strong>{workspaceName}</strong><small>{connected ? 'Espace personnel' : 'Mode local'}</small></span>
           <ChevronDown size={16} />
         </div>
         <p className="nav-caption">ESPACE DE TRAVAIL</p>
@@ -110,18 +200,20 @@ export default function App() {
             <button onClick={() => setNotice('Le centre d’aide sera connecté dans une prochaine phase.')}>Consulter le guide <ArrowUpRight size={14} /></button>
           </div>
           <button className="nav-link muted" onClick={() => setNotice('Les paramètres de l’espace seront ajoutés avec l’authentification.')}><Settings2 size={18} /><span>Paramètres</span></button>
-          <div className="user-row"><span className="user-avatar">AD</span><span className="user-copy"><strong>Administrateur</strong><small>Compte de démonstration</small></span><MoreHorizontal size={18} /></div>
+          {connected
+            ? <div className="user-row"><span className="user-avatar">{initials}</span><span className="user-copy"><strong title={email}>{email}</strong><small>Connecté</small></span><button className="more-button" aria-label="Se déconnecter" title="Se déconnecter" onClick={handleSignOut}><LogOut size={17} /></button></div>
+            : <div className="user-row"><span className="user-avatar">AD</span><span className="user-copy"><strong>Mode local</strong><small>Aucune connexion</small></span><MoreHorizontal size={18} /></div>}
         </div>
       </aside>
 
       <main className="main-area">
         <header className="topbar">
           <button className="mobile-menu" aria-label="Ouvrir le menu" onClick={() => setNotice('Navigation mobile en cours de préparation.')}><Menu size={20} /></button>
-          <div className="breadcrumbs"><span>Mon espace</span><span className="crumb-slash">/</span><strong>{activeNav}</strong></div>
+          <div className="breadcrumbs"><span>{workspaceName}</span><span className="crumb-slash">/</span><strong>{activeNav}</strong></div>
           <div className="top-actions">
-            <span className="environment-pill"><span /> Prototype Studio</span>
+            <span className="environment-pill"><span /> {connected ? 'Prototype Studio' : 'Mode local'}</span>
             <button className="icon-button" aria-label="Notifications" onClick={() => setNotice('Vous êtes à jour : aucune notification de démonstration.')}><Bell size={18} /></button>
-            <span className="top-avatar">AD</span>
+            <span className="top-avatar">{initials}</span>
           </div>
         </header>
 
@@ -162,22 +254,31 @@ export default function App() {
           <section className="sites-section">
             <div className="section-heading"><div><h2>Vos sites</h2><p>Retrouvez vos projets et reprenez là où vous en étiez.</p></div><button className="text-button" onClick={() => setActiveNav('Mes sites')}>Voir tous les sites <ArrowUpRight size={15} /></button></div>
             <div className="sites-toolbar"><label className="search-box"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Rechercher un site..." /></label><button className="filter-button" onClick={() => setNotice('Les filtres avancés seront ajoutés avec les données réelles.')}>Tous les sites <ChevronDown size={15} /></button></div>
-            <div className="site-grid">
+            {dataState?.status === 'loading' && <div className="empty-state" role="status"><strong>Chargement de vos sites…</strong><span>Préparation de votre espace.</span></div>}
+            {dataState?.status === 'error' && (
+              <div className="empty-state" role="alert">
+                <strong>Impossible de charger votre espace</strong>
+                <span>{dataState.message}</span>
+                <button className="secondary-button" onClick={connected?.data.retry}>Réessayer</button>
+              </div>
+            )}
+            {dataState?.status !== 'loading' && dataState?.status !== 'error' && <div className="site-grid">
               {filteredSites.map((site) => (
                 <article className="site-card" key={site.id}>
                   <div className={`site-preview preview-${site.accent}`}>
-                    <div className="preview-browser"><span /><span /><span /><small>{site.name.toLowerCase().replace(/ /g, '-')}.bardec.site</small></div>
+                    <div className="preview-browser"><span /><span /><span /><small>{site.slug}.bardec.site</small></div>
                     <div className="preview-page"><span className="preview-logo"><SiteGlyph icon={site.icon} /> {site.name}</span><div className="preview-lines"><i /><i /><i /></div><div className="preview-button" /><div className="preview-image" /></div>
                     <button className="preview-open" aria-label={`Prévisualiser ${site.name}`} onClick={() => setNotice('L’aperçu interactif sera disponible après la mise en place du moteur de rendu.')}><ExternalLink size={15} /></button>
                   </div>
-                  <div className="site-card-body"><div className="site-title-row"><span className={`site-icon icon-${site.accent}`}><SiteGlyph icon={site.icon} /></span><button className="more-button" aria-label={`Options de ${site.name}`} onClick={() => setNotice('Les actions de gestion seront ajoutées dans la prochaine étape.')}><MoreHorizontal size={18} /></button></div><h3>{site.name}</h3><p>{site.category} <span>·</span> {site.updated}</p><div className="site-card-footer"><span className={site.status === 'Publié' ? 'status status-published' : 'status status-draft'}><span />{site.status}</span><button className="edit-button" onClick={() => setNotice(`L’éditeur de « ${site.name} » sera la prochaine fonctionnalité à construire.`)}>Ouvrir <ArrowUpRight size={14} /></button></div></div>
+                  <div className="site-card-body"><div className="site-title-row"><span className={`site-icon icon-${site.accent}`}><SiteGlyph icon={site.icon} /></span><button className="more-button" aria-label={`Options de ${site.name}`} onClick={() => setNotice('Les actions de gestion seront ajoutées dans la prochaine étape.')}><MoreHorizontal size={18} /></button></div><h3>{site.name}</h3><p>{site.category} <span>·</span> {site.updated}</p><div className="site-card-footer"><span className={site.status === 'Publié' ? 'status status-published' : 'status status-draft'}><span />{site.status}</span><span style={{ display: 'flex', gap: 10 }}><button className="edit-button" disabled title="Publication simulée : la mise en ligne n’est pas encore disponible.">Publier</button><button className="edit-button" onClick={() => setNotice(`L’éditeur de « ${site.name} » sera la prochaine fonctionnalité à construire.`)}>Ouvrir <ArrowUpRight size={14} /></button></span></div></div>
                 </article>
               ))}
               <button className="new-site-card" onClick={() => setCreateOpen(true)}><span className="new-site-icon"><Plus size={22} /></span><strong>Créer un nouveau site</strong><span>Choisissez un modèle et donnez vie à votre projet.</span></button>
-            </div>
-            {filteredSites.length === 0 && <div className="empty-state"><Search size={22} /><strong>Aucun site trouvé</strong><span>Essayez un autre nom ou une autre catégorie.</span></div>}
+            </div>}
+            {dataState?.status === 'ready' && sites.length === 0 && <div className="empty-state"><Globe2 size={22} /><strong>Aucun site pour l’instant</strong><span>Créez votre premier site : il sera enregistré en brouillon.</span></div>}
+            {sites.length > 0 && filteredSites.length === 0 && <div className="empty-state"><Search size={22} /><strong>Aucun site trouvé</strong><span>Essayez un autre nom ou une autre catégorie.</span></div>}
           </section>
-          <footer className="footer-note"><span>BARDEC-BOUTIQUE <b>·</b> Studio de création</span><span><span className="footer-status" /> Prototype local — données de démonstration</span></footer>
+          <footer className="footer-note"><span>BARDEC-BOUTIQUE <b>·</b> Studio de création</span><span><span className="footer-status" /> {connected ? 'Connecté — sites enregistrés en brouillon, publication simulée' : 'Mode local — données de démonstration'}</span></footer>
         </div>
       </main>
 
