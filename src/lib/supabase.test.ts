@@ -12,6 +12,22 @@ async function load(url: string, key: string) {
   return import('./supabase')
 }
 
+describe('normalizeSupabaseUrl', () => {
+  it('ne garde que l’origine du projet', async () => {
+    const { normalizeSupabaseUrl } = await load('', '')
+    expect(normalizeSupabaseUrl('https://abc.supabase.co')).toBe('https://abc.supabase.co')
+    expect(normalizeSupabaseUrl('https://abc.supabase.co/')).toBe('https://abc.supabase.co')
+    expect(normalizeSupabaseUrl('https://abc.supabase.co/rest/v1/')).toBe('https://abc.supabase.co')
+    expect(normalizeSupabaseUrl('  "https://abc.supabase.co"  ')).toBe('https://abc.supabase.co')
+  })
+
+  it('laisse passer une valeur vide ou invalide pour un diagnostic explicite', async () => {
+    const { normalizeSupabaseUrl } = await load('', '')
+    expect(normalizeSupabaseUrl('')).toBeUndefined()
+    expect(normalizeSupabaseUrl('pas-une-url')).toBe('pas-une-url')
+  })
+})
+
 describe('client Supabase', () => {
   it('reste null sans configuration', async () => {
     const m = await load('', '')

@@ -1,6 +1,21 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-const url = import.meta.env.VITE_SUPABASE_URL?.trim()
+/**
+ * L'URL d'un projet Supabase est toujours une origine (https://<ref>.supabase.co).
+ * Si quelqu'un colle « .../rest/v1/ » ou ajoute un chemin, toutes les requêtes échouent avec
+ * « Invalid path specified in request URL » : on ne garde donc que l'origine.
+ */
+export function normalizeSupabaseUrl(raw: string | undefined): string | undefined {
+  const value = raw?.trim().replace(/^["']|["']$/g, '')
+  if (!value) return undefined
+  try {
+    return new URL(value).origin
+  } catch {
+    return value // laissé tel quel : createClient signalera l'URL invalide
+  }
+}
+
+const url = normalizeSupabaseUrl(import.meta.env.VITE_SUPABASE_URL)
 const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim()
 
 /** Vrai uniquement si les deux variables publiques sont renseignées. */
