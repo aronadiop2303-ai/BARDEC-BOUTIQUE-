@@ -61,7 +61,7 @@ Règle : **ne pas mélanger** ces projets. Une connexion n'est ajoutée que si e
 
 | Couche | Contenu | État |
 |---|---|---|
-| **A. Identité et organisations** | Utilisateurs, profils, espaces de travail, membres, rôles, invitations | Schéma présent, **non connecté** |
+| **A. Identité et organisations** | Utilisateurs, profils, espaces de travail, membres, rôles, invitations | Connexion, profil et espace **codés** (tests simulés) ; **non testé en réel** ; membres et invitations à faire |
 | **B. Catalogue des domaines métier** | Classification secteur › sous-secteur › spécialité, versionnable et administrable | **Fait** (base) / partiel (Studio) |
 | **C. Moteur de sites** | Sites, pages, sections, thèmes, médias, versions, aperçu, SEO | Schéma partiel (`sites`, `site_pages`), **moteur absent** |
 | **D. Registre de modules** | Catalogue de modules, dépendances, activation par site | Partiel (13 modules métier) |
@@ -152,16 +152,18 @@ Tests d'isolation à écrire avant tout usage réel : lecture inter-organisation
 | Prototype Studio (React/Vite/TS) | **Fait** | Typecheck et build OK ; données de démonstration |
 | Schéma de base (42 tables, RLS activé partout) | **Partiel** | Créé le 11/10 ; **politiques non auditées en détail**, tables vides, aucun test d'isolation |
 | Classification des activités | **Fait** (base) | 12 catégories, 13 modules ; vérifié : lecture anonyme OK, écriture refusée, contraintes OK |
-| Création guidée dans le Studio | **Partiel** | 18 tests automatiques OK ; lecture réelle depuis le navigateur **à vérifier** ; brouillons non enregistrés |
-| Authentification et espaces de travail | **À faire** | Tables présentes, rien de connecté |
-| Sauvegarde réelle des sites | **À faire** | Dépend de l'authentification |
+| Création guidée dans le Studio | **Partiel** | Connecté : brouillon enregistré via `createSite` (toujours `draft`) ; mode local : démonstration. 49 tests automatiques OK ; **non testé en réel** |
+| Authentification et espaces de travail | **En cours** | Branche `feat/auth-and-workspaces` : inscription, connexion, déconnexion, profil créé à la première connexion, espace « Mon espace » créé au besoin. Tests avec client simulé uniquement ; **non testé en réel** |
+| Sauvegarde réelle des sites | **En cours** | Code et tests simulés ; **non testé en réel** contre la base |
+| Garde de publication et réduction des droits | **Préparé, NON TESTÉ** | Migration `20261014213517_core_security_hardening` sur `chore/core-security-hardening`, **non appliquée** ; test SQL écrit mais pas exécuté (Docker arrêté) |
+| Publication depuis le Studio | **Simulé** | Bouton « Publier » désactivé ; aucun code ne publie |
 | Éditeur de pages, médias | **À faire** | |
 | Application des modèles | **À faire** | 1 modèle pilote **inactif** |
 | Publication, sous-domaines, domaines | **À faire** | Aucune table ni code |
 | Annuaire « Découverte » | **À faire** | Bouton affiché, non fonctionnel |
 | Modules commerce (catalogue, stock, commandes, devis) | **Schéma seulement** | Aucune interface, aucun test fonctionnel |
 | Copilote IA, automatisations, intégrations | **À faire** | |
-| Migrations versionnées dans Git | **Partiel** | 1 sur 18 importée (`supabase db pull` à faire) |
+| Migrations versionnées dans Git | **Partiel** | 18 sur 18 sur la branche `chore/import-supabase-migrations`, **non fusionnée** |
 | Intégration continue | **Partiel** | Typecheck et build ; **tests non branchés** |
 
 ### 10.2 Journal
@@ -173,6 +175,8 @@ Tests d'isolation à écrire avant tout usage réel : lecture inter-organisation
 | 13/10/2026 | Migration `site_classification_foundation` | Appliquée et vérifiée |
 | 14/10/2026 | Parcours guidé « Créer un site » + tests | Publié, branche `feat/guided-site-creation` |
 | 14/10/2026 | Ce document | — |
+| 14/10/2026 | M1 : connexion, espace de travail, brouillons de sites en base | Code et tests simulés (49 OK, typecheck et build OK) ; **non testé en réel** ; branche `feat/auth-and-workspaces` |
+| 14/10/2026 | Migration `core_security_hardening` (garde de publication, droits) | Préparée, **non testée, non appliquée** ; branche `chore/core-security-hardening` |
 
 ### 10.3 Légende
 
@@ -183,8 +187,8 @@ Tests d'isolation à écrire avant tout usage réel : lecture inter-organisation
 | Jalon | Objectif | Critère d'acceptation | État |
 |---|---|---|---|
 | **M0 — Socle fiable** | Dépôt et base alignés | Les 18 migrations sont dans Git ; `npm test`, typecheck et build passent en CI ; doublons de caisse et `stores` traités ; politiques RLS relues | **En cours** |
-| **M1 — Comptes et espaces** | Un utilisateur s'inscrit et possède un espace | Inscription, connexion, création d'espace réelles ; tests d'isolation entre deux espaces | À faire |
-| **M2 — Sites enregistrés** | Créer et retrouver un site | Un site créé via le parcours guidé est enregistré (catégorie et modèle liés), visible seulement de ses membres | À faire |
+| **M1 — Comptes et espaces** | Un utilisateur s'inscrit et possède un espace | Inscription, connexion, création d'espace réelles ; tests d'isolation entre deux espaces | **En cours** (code fait, non testé en réel ; test d'isolation SQL écrit, non exécuté) |
+| **M2 — Sites enregistrés** | Créer et retrouver un site | Un site créé via le parcours guidé est enregistré (catégorie et modèle liés), visible seulement de ses membres | **En cours** (catégorie liée ; modèle toujours null ; non testé en réel) |
 | **M3 — Éditeur de base** | Modifier pages et thème | Pages, sections, brouillons, aperçu mobile/ordinateur, sauvegarde | À faire |
 | **M4 — Publication** | Un site réellement accessible | Publication validée par un humain sur un **sous-domaine** réellement joignable ; version publiée ; retour arrière | À faire |
 | **M5 — Quincaillerie pilote** | Catalogue, stock, commandes, devis | Un commerçant gère un catalogue et reçoit une commande ou un devis de bout en bout | À faire |
@@ -209,11 +213,12 @@ Un jalon n'est « terminé » que lorsque tous ses critères sont vérifiés.
 
 **Critiques**
 - Les politiques RLS existent mais n'ont pas été auditées en profondeur ni testées entre organisations.
-- 17 migrations sur 18 ne sont pas dans Git : le schéma ne peut pas être reconstruit à partir du dépôt.
+- Les 18 migrations sont dans Git, mais sur une branche non fusionnée (`chore/import-supabase-migrations`).
+- Tant que la migration `core_security_hardening` n'est pas appliquée, **un éditeur peut publier un site** par un simple UPDATE (la base le permet ; le Studio, lui, ne publie pas).
 
 **Importants**
 - Tables en double : `cash_sessions`/`cash_movements` et `cash_register_sessions`/`cash_register_movements` ; `stores` semble doubler `sites`.
-- Droits par défaut très larges pour `anon` et `authenticated` sur les anciennes tables (y compris `TRUNCATE`) ; seule RLS protège l'écriture.
+- Droits par défaut très larges pour `anon` et `authenticated` sur les anciennes tables (y compris `TRUNCATE`) ; seule RLS protège l'écriture. Correctif préparé (non appliqué, non testé).
 - La lecture anonyme de `sites` expose toutes les colonnes des sites publiés (dont `settings`).
 - Aucune intégration continue des tests ; le Studio pèse 398 ko (bibliothèque Supabase), à alléger si besoin.
 
