@@ -33,13 +33,33 @@ Données de référence : 4 secteurs, 4 sous-secteurs, 4 spécialités (Commerce
 - Nouvelle spécialité : insérer une ligne `site_categories` avec `level = 3` et le `parent_id` d'un sous-secteur.
 - Nouveau modèle : insérer dans `site_templates` puis `template_modules`.
 
+## Comptes, espaces et sites depuis le Studio (branche `feat/auth-and-workspaces`)
+
+État : code et tests avec client simulé. **Non testé contre la base réelle.**
+
+- **Profil** : aucun trigger ne le crée à l'inscription. Le Studio fait `upsert … on conflict (user_id) do nothing` à chaque connexion (politique `profile_insert_self`) ; un profil existant n'est jamais écrasé.
+- **Espace** : le Studio cherche l'espace possédé (`owner_id = auth.uid()`), sinon un espace dont l'utilisateur est membre, sinon crée « Mon espace » avec un slug global `mon-espace-xxxx` (nouvel essai sur `23505`). Le propriétaire n'a **pas** de ligne dans `workspace_memberships`.
+- **Pas d'INSERT … RETURNING sur `workspaces`** : la politique SELECT passe par `private.has_workspace_access`, fonction STABLE qui ne voit pas la ligne insérée dans la même instruction. Le Studio génère l'`id`, insère, puis relit (supposé d'après le fonctionnement de Postgres, à confirmer en réel).
+- **Sites** : `status` toujours `'draft'`, `template_id` null, `category_id` = dernier nœud du parcours (null pour « Personnalisé »), slug unique par espace (nom puis nom + suffixe sur `23505`). Le Studio ne lit jamais `theme` ni `settings`.
+
+## Garde de publication et droits (migration `20261014213517_core_security_hardening`)
+
+**NON TESTÉE, NON APPLIQUÉE.** Branche `chore/core-security-hardening`, test : `supabase/tests/core_security_hardening.test.sql` (base locale jetable uniquement).
+
+- **Garde** : déclencheur `sites_publication_guard` (BEFORE INSERT OR UPDATE) → `private.enforce_site_publication()` (SECURITY INVOKER, `search_path` vide). Passer à `published` (insertion, changement de statut ou changement d'espace d'un site publié) exige propriétaire, `admin` ou `publisher`. Erreur `42501` « Publication refusée… ».
+- **`published_at`** : fixé par la base à la première publication, conservé ensuite ; un utilisateur connecté ne peut pas le modifier directement.
+- **Sans utilisateur** (`auth.uid()` null) : `anon`/`authenticated` refusés pour publier ; rôles serveur (`postgres`, `service_role`) autorisés, car ils contournent déjà RLS. Une future fonction SECURITY DEFINER qui écrirait dans `sites` devra faire son propre contrôle.
+- **Droits** : `TRUNCATE`, `TRIGGER`, `REFERENCES` retirés à `anon` et `authenticated` sur toutes les tables `public` ; `INSERT/UPDATE/DELETE` retirés à `anon` sur `profiles`, `workspaces`, `workspace_memberships`, `sites`, `site_pages`. Privilèges par défaut du rôle `postgres` alignés pour les tables futures (ceux de `supabase_admin` ne sont pas modifiables par migration).
+- **Parcours invité conservé** : seule politique d'écriture `anon` trouvée (lecture de `pg_policies`, 14/10/2026) : `business_inquiries.inquiries_public_insert`. Son `INSERT` n'est pas touché.
+- **Limites** : un éditeur peut encore modifier un site déjà publié et le dépublier ; la lecture anonyme expose toujours toutes les colonnes des sites publiés.
+
 ## Points connus à traiter (non corrigés)
 
 1. **Tables en double** : `cash_sessions` / `cash_movements` et `cash_register_sessions` / `cash_register_movements` (mêmes rôles, colonnes différentes) ; `stores` semble doublonner `sites` (RLS activé, aucune politique).
-2. **Droits par défaut larges** : `anon` et `authenticated` détiennent tous les privilèges (dont `TRUNCATE`, `TRIGGER`, `REFERENCES`) sur les tables plus anciennes comme `sites`. Seules les politiques RLS protègent l'écriture, ce qui est le comportement Supabase par défaut mais mérite un durcissement.
+2. **Droits par défaut larges** : `anon` et `authenticated` détiennent tous les privilèges (dont `TRUNCATE`, `TRIGGER`, `REFERENCES`) sur les tables plus anciennes comme `sites`. Seules les politiques RLS protègent l'écriture, ce qui est le comportement Supabase par défaut mais mérite un durcissement. Correctif préparé (voir ci-dessus), non appliqué.
 3. **Lecture anonyme de `sites`** : la politique `published_sites_anon_select` expose toutes les colonnes des sites publiés (dont `settings` et `theme`).
 4. **Performance** : 36 clés étrangères sans index (hors nouvelles tables), 7 politiques à réécrire avec `(select auth.uid())`.
-5. **Migrations antérieures** : seule la migration `20261013220218` est versionnée dans ce dépôt ; les 17 précédentes restent à importer (`supabase db pull`).
+5. **Migrations antérieures** : les 18 migrations sont importées sur la branche `chore/import-supabase-migrations`, pas encore fusionnée.
 
 ## Hors périmètre de cette migration
 
