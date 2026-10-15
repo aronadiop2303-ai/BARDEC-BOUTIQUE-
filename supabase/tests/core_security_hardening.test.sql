@@ -1,7 +1,7 @@
 -- =============================================================================
 -- NE JAMAIS EXÉCUTER SUR LE PROJET RÉEL.
 -- =============================================================================
--- Test de la migration 20261014213517_core_security_hardening.sql.
+-- Test de la migration 20261015231406_core_security_hardening.sql.
 -- À exécuter UNIQUEMENT sur une base locale jetable (supabase start), en tant que postgres,
 -- après application de toutes les migrations :
 --   psql -v ON_ERROR_STOP=1 -f supabase/tests/core_security_hardening.test.sql
