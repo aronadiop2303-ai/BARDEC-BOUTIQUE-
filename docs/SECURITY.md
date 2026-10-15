@@ -35,3 +35,12 @@
 - Sauvegarde vérifiée et procédure de restauration testée.
 - Journaux d’audit pour changement de rôle, publication, prix, remboursement et actions d’administration.
 - Aucune migration ou mise en production sans revue et approbation explicites.
+
+## Durcissement appliqué
+- `20261015231406_core_security_hardening` : **appliquée le 16/10/2026, non testée sur base locale ; vérifiée en lecture seule.**
+  - Ajoute une garde de publication : le trigger `sites_publication_guard` sur `public.sites` et la fonction `private.enforce_site_publication()`.
+  - Retire TRUNCATE, TRIGGER et REFERENCES à `anon` et `authenticated` : 228 droits avant, 0 après.
+  - Retire à `anon` toute écriture (INSERT, UPDATE, DELETE) sur `profiles`, `workspaces`, `workspace_memberships`, `sites` et `site_pages` : 15 droits avant, 0 après.
+  - `anon` garde INSERT sur `business_inquiries`.
+  - Le comportement du trigger lors d'une vraie écriture n'a pas été vérifié : aucun test d'écriture n'a été fait sur la base réelle.
+  - Retour arrière : bloc en tête du fichier de migration, à exécuter seulement avec l'accord écrit du propriétaire.
