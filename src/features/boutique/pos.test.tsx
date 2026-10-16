@@ -1,0 +1,164 @@
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, configure, fireEvent, render, screen, within } from '@testing-library/react'
+import { fakeSupabase, type FakeResult } from '../../test/fakeSupabase'
+import { permissionsFor } from '../../lib/store/permissions'
+import type { StoreRole } from '../../lib/store/access'
+import type { ReceiptSnapshot } from '../../domain/pos/receipt'
+import type { BoutiqueContext } from './context'
+import PosPage, { MANUAL_PAYMENT_NOTICE } from './PosPage'
+import Receipt from './Receipt'
+
+configure({ asyncUtilTimeout: 5000 })
+afterEach(cleanup)
+
+const SITE = '11111111-1111-4111-8111-111111111111'
+
+function setup(role: StoreRole, responses: FakeResult[], userId = 'u-1') {
+  const fake = fakeSupabase(responses)
+  const ctx: BoutiqueContext = {
+    client: fake.client, userId, siteId: SITE,
+    access: { site: { id: SITE, workspace_id: 'ws', name: 'Quincaillerie Diop', slug: 'q', site_type: 'store', status: 'draft', category_id: 'c' }, workspace: { id: 'ws', name: 'Espace', owner_id: 'owner' }, role, isHardware: true },
+    can: permissionsFor(role),
+  }
+  render(<PosPage ctx={ctx} />)
+  return fake
+}
+
+/** Instantané figé VOLONTAIREMENT incohérent : 3 × 5 000 n'y vaut pas 999, et le total n'est pas la somme des lignes. */
+const frozen: ReceiptSnapshot = {
+  version: 1,
+  document: { type: 'receipt', number: 'TICKET-2026-000042', issued_at: '2026-10-16T09:30:00Z' },
+  shop: { name: 'Quincaillerie Diop', address: 'Route de Rufisque', city: 'Pikine', phone: '77 000 00 00' },
+  settings: { paper: 'thermal_80mm', footer_text: 'Merci de votre visite', legal_details: { ninea: '0012345', vat_number: '' }, show_cashier_name: true, show_customer_details: false },
+  cashier: { id: 'u-1', name: 'Awa' },
+  customer: { name: 'Moussa', phone: '770000001' },
+  lines: [{ name: 'Marteau', sku: 'MAR-1', quantity: 3, unit_label: 'Pièce', unit_price: 5000, line_discount: 0, line_total: 999 }],
+  totals: { subtotal: 999, discount_total: 0, tax_total: 0, grand_total: 12345, currency: 'XOF' },
+  payments: [{ method: 'cash', label: 'Espèces', amount: 12345, reference: null }],
+  cash: { tendered: 20000, change: 7655 },
+}
+
+describe('impression depuis l’instantané', () => {
+  it('affiche les valeurs figées sans rien recalculer', () => {
+    render(<Receipt snapshot={frozen} format="ticket" />)
+    const receipt = screen.getByRole('article', { name: 'Ticket de caisse TICKET-2026-000042' })
+    const text = receipt.textContent ?? ''
+    expect(text).toContain('999 FCFA')
+    expect(text).toContain('12 345 FCFA')
+    expect(text).not.toContain('15 000 FCFA')
+    expect(text).toContain('3 Pièce × 5 000 FCFA')
+    expect(text).toContain('Monnaie rendue7 655 FCFA')
+    expect(text).toContain('Caissier')
+    expect(text).toContain('NINEA : 0012345')
+    expect(text).toContain('Merci de votre visite')
+  })
+
+  it('n’affiche la TVA que si elle est renseignée, masque le client selon les réglages, marque un reçu annulé', () => {
+    const { unmount } = render(<Receipt snapshot={frozen} format="a4" voided />)
+    const text = screen.getByRole('article').textContent ?? ''
+    expect(text).not.toContain('TVA')
+    expect(text).not.toContain('Moussa')
+    expect(text).toContain('ANNULÉ')
+    expect(text).toContain('Reçu de vente')
+    unmount()
+    render(<Receipt snapshot={{ ...frozen, settings: { ...frozen.settings, legal_details: { vat_number: 'SN-TVA-1' }, show_customer_details: true } }} format="a4" />)
+    const withVat = screen.getByRole('article').textContent ?? ''
+    expect(withVat).toContain('N° TVA : SN-TVA-1')
+    expect(withVat).toContain('Moussa')
+  })
+})
+
+const installed: FakeResult = { data: null, count: 0 }
+const openSession: FakeResult = { data: { id: 'sess-1', register_name: 'Caisse principale', status: 'open', opening_cash: 10000, opened_at: '2026-10-16T08:00:00Z', opened_by: 'u-1' } }
+const units: FakeResult = { data: [{ id: 'unit-u', code: 'u', label: 'Pièce', dimension: 'count', decimal_places: 0 }] }
+const settings: FakeResult = { data: { settings: {} } }
+const noSales: FakeResult = { data: [] }
+const issuedSale: FakeResult = {
+  data: [{ id: 'doc-1', order_id: 'order-1', document_number: 'TICKET-2026-000042', status: 'issued', total_amount: 12345, issued_at: '2026-10-16T09:30:00Z', void_reason: null, content_snapshot: frozen }],
+}
+
+describe('écran Ventes et caisse', () => {
+  it('reste désactivé avec un message clair si la migration n’est pas appliquée', async () => {
+    setup('owner', [{ error: { code: 'PGRST205', message: 'Could not find the table public.document_counters' } }])
+    expect(await screen.findByText(/la migration/)).toBeTruthy()
+    expect(screen.getByText(MANUAL_PAYMENT_NOTICE)).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Ouvrir la caisse' }).closest('fieldset') as HTMLFieldSetElement).disabled).toBe(true)
+    expect(screen.queryByRole('button', { name: 'Encaisser' })).toBeNull()
+  })
+
+  it('propose l’ouverture de caisse à un vendeur sans session ouverte', async () => {
+    const fake = setup('editor', [installed, { data: null }, units, settings, noSales, {}, { data: null }, units, settings, noSales])
+    fireEvent.change(await screen.findByLabelText('Fond de caisse (FCFA)'), { target: { value: '15 000' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Ouvrir la caisse' }))
+    expect(await screen.findByText('Aucune vente aujourd’hui.')).toBeTruthy()
+    const insert = fake.queries.find((q) => q.table === 'cash_register_sessions' && q.ops.some(([n]) => n === 'insert'))
+    expect(fake.op(insert!, 'insert')?.[0]).toMatchObject({ site_id: SITE, opened_by: 'u-1', opening_cash: 15000 })
+  })
+
+  it('encaisse sans jamais envoyer de prix et affiche le numéro du reçu', async () => {
+    const product = { id: 'p-1', name: 'Marteau', sku: 'MAR-1', barcode: '6001', price: 5000, currency_code: 'XOF', track_inventory: true }
+    const fake = setup('editor', [
+      installed, openSession, units, settings, noSales,
+      { data: [product] },
+      { data: [{ id: 'su-1', product_id: 'p-1', unit_id: 'unit-u', conversion_to_base: 1, is_default: true, min_sale_quantity: 1, quantity_step: 1 }] },
+      { data: [] },
+      { data: { order_id: 'order-1', document_id: 'doc-1', document_number: 'TICKET-2026-000001', grand_total: 10000, change_given: 5000, snapshot: frozen } },
+      installed, openSession, units, settings, noSales,
+    ])
+    fireEvent.change(await screen.findByLabelText('Rechercher un produit ou scanner un code-barres'), { target: { value: 'Mart' } })
+    fireEvent.click(await screen.findByRole('button', { name: /Ajouter$/ }))
+    fireEvent.change(screen.getByLabelText('Quantité de Marteau'), { target: { value: '2' } })
+    fireEvent.change(screen.getByLabelText('Montant du paiement 1'), { target: { value: '15000' } })
+    expect(within(screen.getByRole('table', { name: 'Panier' })).getByText('10 000 FCFA')).toBeTruthy()
+    expect(screen.getByText('5 000 FCFA', { selector: 'dd' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Encaisser' }))
+    expect(await screen.findByText(/Vente enregistrée : TICKET-2026-000001/)).toBeTruthy()
+
+    const call = fake.queries.find((q) => q.table === 'rpc:record_sale')
+    const args = fake.op(call!, 'rpc')?.[0] as Record<string, unknown>
+    expect(args).toMatchObject({ p_site_id: SITE, p_cash_session_id: 'sess-1', p_payments: [{ method: 'cash', amount: 15000 }], p_discount: {} })
+    expect(args.p_lines).toEqual([{ product_id: 'p-1', unit_id: 'unit-u', quantity: 2 }])
+    expect(JSON.stringify(args)).not.toMatch(/price|total/)
+  })
+
+  it('bloque l’encaissement si le paiement est insuffisant', async () => {
+    const product = { id: 'p-1', name: 'Marteau', sku: null, barcode: null, price: 5000, currency_code: 'XOF', track_inventory: true }
+    setup('owner', [
+      installed, openSession, units, settings, noSales,
+      { data: [product] },
+      { data: [{ id: 'su-1', product_id: 'p-1', unit_id: 'unit-u', conversion_to_base: 1, is_default: true, min_sale_quantity: 1, quantity_step: 1 }] },
+      { data: [] },
+    ])
+    fireEvent.change(await screen.findByLabelText('Rechercher un produit ou scanner un code-barres'), { target: { value: 'Mart' } })
+    fireEvent.click(await screen.findByRole('button', { name: /Ajouter$/ }))
+    fireEvent.change(screen.getByLabelText('Montant du paiement 1'), { target: { value: '4000' } })
+    expect(screen.getByText('Paiement insuffisant : il manque 1 000 FCFA.')).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Encaisser' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('consultation seule pour un viewer : ni encaissement ni annulation', async () => {
+    setup('viewer', [installed, openSession, units, settings, issuedSale], 'u-2')
+    expect(await screen.findByText(/Consultation seule/)).toBeTruthy()
+    expect(screen.getByText('TICKET-2026-000042')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Encaisser' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Annuler' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Clôturer (Z)' })).toBeNull()
+  })
+
+  it('annulation par un admin : motif obligatoire, appel de void_sale', async () => {
+    const fake = setup('admin', [
+      installed, openSession, units, settings, issuedSale,
+      { data: { order_id: 'order-1', stock_movements_reversed: 1, documents_voided: 1, cash_refund: 12345, cash_refund_recorded: true, cash_session_closed: false } },
+      installed, openSession, units, settings, noSales,
+    ], 'u-3')
+    fireEvent.click(await screen.findByRole('button', { name: 'Annuler' }))
+    const confirm = screen.getByRole('button', { name: 'Confirmer l’annulation' }) as HTMLButtonElement
+    expect(confirm.disabled).toBe(true)
+    fireEvent.change(screen.getByLabelText('Motif d’annulation de TICKET-2026-000042'), { target: { value: 'Erreur de saisie' } })
+    fireEvent.click(confirm)
+    expect(await screen.findByText(/annulée, stock rétabli/)).toBeTruthy()
+    const call = fake.queries.find((q) => q.table === 'rpc:void_sale')
+    expect(fake.op(call!, 'rpc')?.[0]).toEqual({ p_order_id: 'order-1', p_reason: 'Erreur de saisie' })
+  })
+})

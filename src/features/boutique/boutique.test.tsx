@@ -67,8 +67,8 @@ describe('garde d’accès de l’espace de gestion', () => {
   it('affiche le menu, les sections « bientôt » inactives et le rôle', async () => {
     renderPage([{ data: hardwareSite }, ownedBy('autre'), { data: { role: 'editor' } }, quincaillerie, ...configured, ...dashboard], 'vendeur')
     expect(await screen.findByRole('heading', { name: 'Tableau de bord' })).toBeTruthy()
-    for (const label of ['Produits', 'Familles', 'Stock', 'Paramètres boutique']) expect(screen.getByRole('link', { name: label })).toBeTruthy()
-    const soon = screen.getByText('Ventes et caisse').closest('[aria-disabled]')
+    for (const label of ['Produits', 'Familles', 'Stock', 'Ventes et caisse', 'Paramètres boutique']) expect(screen.getByRole('link', { name: label })).toBeTruthy()
+    const soon = screen.getByText('Clients et crédits').closest('[aria-disabled]')
     expect(soon?.getAttribute('aria-disabled')).toBe('true')
     expect(screen.getByText(/Vendeur \(editor\)/)).toBeTruthy()
     // Matrice : un vendeur ne crée pas de produit.

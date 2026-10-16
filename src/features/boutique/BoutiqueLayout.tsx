@@ -4,6 +4,7 @@ import { ROLE_LABELS } from '../../lib/store/permissions'
 import type { BoutiqueContext } from './context'
 import Dashboard from './Dashboard'
 import FamiliesPage from './FamiliesPage'
+import PosPage from './PosPage'
 import ProductForm from './ProductForm'
 import ProductsPage from './ProductsPage'
 import SettingsPage from './SettingsPage'
@@ -14,12 +15,12 @@ const MENU: { section: BoutiqueSection; label: string; icon: typeof Package }[] 
   { section: 'produits', label: 'Produits', icon: Package },
   { section: 'familles', label: 'Familles', icon: FolderTree },
   { section: 'stock', label: 'Stock', icon: Boxes },
+  { section: 'ventes', label: 'Ventes et caisse', icon: Receipt },
   { section: 'parametres', label: 'Paramètres boutique', icon: Settings2 },
 ]
 
 /** Sections prévues, visibles mais inactives : aucun faux contenu. */
 const SOON: { label: string; milestone: string; icon: typeof Package }[] = [
-  { label: 'Ventes et caisse', milestone: 'Q3', icon: Receipt },
   { label: 'Clients et crédits', milestone: 'Q4', icon: Users },
   { label: 'Fournisseurs et achats', milestone: 'Q4', icon: Truck },
   { label: 'Devis et documents', milestone: 'Q5', icon: FileText },
@@ -36,6 +37,7 @@ export default function BoutiqueLayout({ ctx, section, itemId }: { ctx: Boutique
   else if (section === 'produits') content = <ProductsPage ctx={ctx} />
   else if (section === 'familles') content = <FamiliesPage ctx={ctx} />
   else if (section === 'stock') content = <StockPage ctx={ctx} />
+  else if (section === 'ventes') content = <PosPage ctx={ctx} />
   else if (section === 'parametres') content = <SettingsPage ctx={ctx} />
   else content = <Dashboard ctx={ctx} />
 

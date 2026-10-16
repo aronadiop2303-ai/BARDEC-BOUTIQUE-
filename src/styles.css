@@ -105,3 +105,35 @@
   .bq-row>*{flex:1 1 140px}
   .bq-row>.icon-button{flex:0 0 auto}
 }
+
+/* Ventes et caisse */
+.bq-qty{height:36px;width:90px;border:1px solid #dfe5ee;border-radius:8px;padding:0 8px;font:inherit;font-size:13px}
+.bq-sale-totals{display:flex;flex-wrap:wrap;gap:24px;margin:0}
+.bq-sale-totals div{display:flex;flex-direction:column;gap:2px}
+.bq-sale-totals dt{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#6d7a8f}
+.bq-sale-totals dd{margin:0;font:800 22px Manrope;color:#172944}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* Reçus : ticket 80 mm (zone imprimable 72 mm, police à chasse fixe) et A4 */
+.print-root{display:none}
+.receipt{color:#000;background:#fff}
+.receipt dl,.receipt dd{margin:0}
+.receipt-ticket{width:72mm;font:11px/1.35 ui-monospace,'Courier New',monospace}
+.receipt-a4{width:180mm;font:12px/1.5 Arial,sans-serif}
+.receipt-head{display:flex;flex-direction:column;align-items:center;text-align:center;gap:1px;margin-bottom:6px}
+.receipt-shop{font-size:1.3em}
+.receipt-meta div,.receipt-totals div,.receipt-payments div{display:flex;justify-content:space-between;gap:8px}
+.receipt-meta,.receipt-totals,.receipt-payments{border-top:1px dashed #000;padding-top:4px;margin-top:4px}
+.receipt-lines{width:100%;border-collapse:collapse;margin-top:4px}
+.receipt-lines th{text-align:left;border-bottom:1px dashed #000;font-weight:700}
+.receipt-lines td{padding:2px 0;vertical-align:top}
+.receipt-lines td small{display:block}
+.receipt-lines .num{text-align:right;white-space:nowrap}
+.receipt-grand{font-weight:700;font-size:1.2em}
+.receipt-footer{text-align:center;border-top:1px dashed #000;padding-top:4px;margin-top:6px;white-space:pre-line}
+.receipt-void{text-align:center;font-weight:700;font-size:1.4em;border:2px solid #000;margin:0 0 6px}
+@media print{
+  body *{visibility:hidden}
+  .print-root,.print-root *{visibility:visible}
+  .print-root{display:block;position:absolute;left:0;top:0}
+}

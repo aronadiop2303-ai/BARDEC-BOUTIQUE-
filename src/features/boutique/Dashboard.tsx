@@ -57,7 +57,7 @@ export default function Dashboard({ ctx }: { ctx: BoutiqueContext }) {
         <h2 className="bq-subtitle">Pas encore disponible</h2>
         <ul className="bq-list muted">
           <li>Saisie du stock, prix d’achat et marge (Q2).</li>
-          <li>Caisse et ventes au comptoir (Q3) ; clients, crédit, fournisseurs (Q4) ; devis et documents (Q5) ; rapports et équipe (Q6).</li>
+          <li>Ventes et caisse (Q3) : écran prêt, actif seulement après application de la migration des ventes ; clients, crédit, fournisseurs (Q4) ; devis et documents (Q5) ; rapports et équipe (Q6).</li>
         </ul>
       </section>
     </div>
