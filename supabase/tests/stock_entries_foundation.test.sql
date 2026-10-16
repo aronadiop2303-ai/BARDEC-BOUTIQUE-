@@ -1,7 +1,7 @@
 -- =============================================================================
 -- NE JAMAIS EXÉCUTER SUR LE PROJET RÉEL.
 -- =============================================================================
--- Test de la migration 20261016022528_stock_entries_foundation.sql.
+-- Test de la migration 20261016065722_stock_entries_foundation.sql.
 -- STATUT : NON TESTÉE (Docker indisponible : ce fichier n'a jamais été exécuté).
 -- Base locale jetable uniquement, en tant que postgres, après TOUTES les migrations :
 --   psql -v ON_ERROR_STOP=1 -f supabase/tests/stock_entries_foundation.test.sql

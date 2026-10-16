@@ -1,8 +1,10 @@
 -- =============================================================================
 -- Caisse : plus aucune écriture directe, tout passe par des fonctions SQL contrôlées
 -- =============================================================================
--- STATUT : PRÉPARÉE, NON TESTÉE (Docker indisponible), NON APPLIQUÉE.
--- NE PAS APPLIQUER sans l'autorisation écrite du propriétaire nommant « pos_cash_lockdown ».
+-- STATUT : APPLIQUÉE le 16/10/2026 sur le projet réel (version 20261016065800), sur autorisation écrite du
+-- propriétaire ; non testée en exécution (open_cash_session jamais appelée, test SQL jamais exécuté).
+-- Vérifiée en lecture seule. Le SQL appliqué est celui de ce fichier avant la mise à jour de ces lignes
+-- d'en-tête (empreinte MD5 identique, fins de ligne LF).
 --
 -- PRÉREQUIS : pos_sales_foundation appliquée (private.site_role, close_cash_session, index d'unicité
 -- cash_register_sessions_one_open). Le bloc 0 le vérifie et s'arrête sinon.

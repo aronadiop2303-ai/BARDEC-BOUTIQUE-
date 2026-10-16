@@ -1,8 +1,10 @@
 -- =============================================================================
 -- Entrées de stock (jalon Q2) : inventaire initial, réception, ajustement, perte, par fonction contrôlée
 -- =============================================================================
--- STATUT : PRÉPARÉE, NON TESTÉE (Docker indisponible), NON APPLIQUÉE.
--- NE PAS APPLIQUER sans l'autorisation écrite du propriétaire nommant « stock_entries_foundation ».
+-- STATUT : APPLIQUÉE le 16/10/2026 sur le projet réel (version 20261016065722), sur autorisation écrite du
+-- propriétaire ; non testée en exécution (aucun mouvement enregistré, test SQL jamais exécuté).
+-- Vérifiée en lecture seule. Le SQL appliqué est celui de ce fichier avant la mise à jour de ces lignes
+-- d'en-tête (empreinte MD5 identique, fins de ligne LF).
 --
 -- ÉTAT VÉRIFIÉ (lecture seule, 16/10/2026)
 --   inventory_movements : seule politique inventory_movements_store_member_read (SELECT), RLS active, 0 ligne ;

@@ -50,7 +50,7 @@ Multi-emplacements (`stock_locations`), seuils, inventaire, pertes, lots, réser
 
 Décrits dans le cahier des charges (sections 3.6 à 3.14). Caisse : uniquement `cash_register_*`.
 
-**Ventes et caisse (Q3) : code écrit ; migration des ventes appliquée le 16/10/2026, non testée en exécution ; verrouillage de la caisse non appliqué.**
+**Ventes et caisse (Q3) : code écrit ; migration des ventes et verrouillage de la caisse appliqués le 16/10/2026, non testés en exécution.**
 
 - **Migration** `supabase/migrations/20261016014204_pos_sales_foundation.sql`, **appliquée le 16/10/2026, non testée en exécution** :
   - vente comptoir sans client, quantités numériques ;
@@ -58,7 +58,7 @@ Décrits dans le cahier des charges (sections 3.6 à 3.14). Caisse : uniquement 
   - fonctions `record_sale`, `void_sale`, `cash_session_summary` (X) et `close_cash_session` (Z).
   - Elle exige `fix_store_audit_trigger_columns`, appliquée le 16/10/2026 (version `20261016004129`).
   - `order_items.line_total` passe de colonne calculée à colonne normale (brut moins remise de ligne).
-- **Verrouillage de la caisse** `20261016011818_pos_cash_lockdown.sql` (préparé, non testé, non appliqué) : plus d'écriture directe ; ouverture par `open_cash_session`.
+- **Verrouillage de la caisse** `20261016065800_pos_cash_lockdown.sql`, **appliqué le 16/10/2026, non testé en exécution** : plus d'écriture directe ; ouverture par `open_cash_session`.
 - **Test SQL** `supabase/tests/pos_sales_foundation.test.sql` : jamais exécuté (Docker indisponible).
 - **Domaine** `src/domain/pos/` : calcul de ligne, totaux, remises par rôle, monnaie à rendre, numérotation, mentions légales. Tests Vitest OK.
 - **Écran** « Ventes et caisse » (`PosPage.tsx`) :
@@ -80,7 +80,7 @@ Clients, crédit, achats, documents A4 numérotés (factures, avoirs) et rapport
 | b | Pas de clients, plafond, solde, paiement partiel | Pas de crédit client | Q4 |
 | c | Pas de fournisseurs, bons de commande, réceptions | Pas d'achats | Q4 |
 | d | `orders.customer_id` et `customer_phone` obligatoires ; pas de canal ni de vendeur | Vente comptoir anonyme impossible | Q3 : traité par `pos_sales_foundation` (non appliquée) |
-| e | Pas de vue ni de fonction « niveau de stock » ; `inventory_movements` en lecture seule pour les clients | Stock consultable (agrégé par le Studio) ; saisie par `record_stock_movement`, **préparée, non appliquée** | Q2 : fonction préparée ; vue de niveau à faire |
+| e | Pas de vue ni de fonction « niveau de stock » ; `inventory_movements` en lecture seule pour les clients | Stock consultable (agrégé par le Studio) ; saisie par `record_stock_movement`, **appliquée le 16/10/2026, non testée en exécution** | Q2 : saisie en place ; vue de niveau à faire |
 | f | Pas de numérotation sans trou, pas de retours, pas de dépenses catégorisées | Documents et avoirs impossibles | Q3 : numérotation et annulation préparées (non appliquées) ; avoirs et dépenses : Q5 |
 | g | Rôles : ni caissier, ni vendeur, ni magasinier, ni gérant | Matrice réduite aux 4 rôles | Q6 |
 | h | Pas de colonne « unité de base » sur `products` | Convention `conversion_to_base = 1` | Q2 |
@@ -150,8 +150,8 @@ solde = Σ écritures ; plafond vérifié par la base
 | Jalon | Contenu | État |
 |---|---|---|
 | **Q1** | Espace de gestion, configuration, catalogue, consultation du stock | **Code fait, tests automatiques OK, non testé en réel** |
-| Q2 | Stock complet + prix d'achat/coût | **Saisie du stock : code et tests Vitest faits ; migration `stock_entries_foundation` préparée, non testée, non appliquée.** Coût d'achat, seuils et vue de niveau : à faire |
-| Q3 | Caisse et ventes comptoir | **Code et tests Vitest faits ; `pos_sales_foundation` appliquée le 16/10/2026, non testée en exécution ; `pos_cash_lockdown` préparée, non appliquée** |
+| Q2 | Stock complet + prix d'achat/coût | **Saisie du stock : code et tests Vitest faits ; `stock_entries_foundation` appliquée le 16/10/2026, non testée en exécution.** Coût d'achat, seuils et vue de niveau : à faire |
+| Q3 | Caisse et ventes comptoir | **Code et tests Vitest faits ; `pos_sales_foundation` et `pos_cash_lockdown` appliquées le 16/10/2026, non testées en exécution** |
 | Q4 | Clients, crédit, fournisseurs, achats | À faire (migration requise) |
 | Q5 | Devis, factures, bons de livraison, avoirs | À faire |
 | Q6 | Rapports, alertes, rôles fins, audit | À faire |

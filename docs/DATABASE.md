@@ -101,20 +101,34 @@ Données de référence : 4 secteurs, 4 sous-secteurs, 4 spécialités (Commerce
   - coût et marge : Q2.
   - La RLS actuelle permet encore à un membre (publisher compris) d'insérer des `cash_register_movements` et à la personne qui a ouvert la caisse de modifier sa session directement. Le correctif est préparé séparément (section suivante).
 
-## Verrouillage de la caisse (migration `20261016011818_pos_cash_lockdown`)
+## Verrouillage de la caisse (migration `20261016065800_pos_cash_lockdown`)
 
-**Statut : préparée, NON TESTÉE, NON APPLIQUÉE.** Elle exige `pos_sales_foundation` et s'arrête sinon.
+**Statut : appliquée le 16/10/2026 sur le projet réel (version `20261016065800`), sur autorisation écrite du propriétaire. Non testée en exécution ; vérifiée en lecture seule.**
+
+- **Vérifié après application** :
+  - SQL enregistré identique au fichier (MD5 `d6aa5b79…`) ;
+  - seules restent les politiques de lecture `cash_movements_member_read` et `cash_sessions_member_read`, et la RLS est active sur les deux tables ;
+  - plus aucun droit INSERT, UPDATE ou DELETE pour `anon` ni `authenticated` ;
+  - `open_cash_session` : SECURITY DEFINER, exécutable par `authenticated`, pas par `anon` ni `public`.
+  - La session « Caisse principale » ouverte avant la migration est toujours ouverte ; elle se clôture par `close_cash_session`.
 
 - **Suppression** de `cash_movements_member_insert`, `cash_sessions_member_insert` et `cash_sessions_owner_or_opener_update`. Les politiques de lecture sont conservées et la RLS reste active.
 - **Retrait** de INSERT, UPDATE et DELETE sur `cash_register_movements` et `cash_register_sessions` à `anon` et `authenticated`.
 - **Nouvelle fonction** `public.open_cash_session(site, fond, nom, note)` : propriétaire, admin ou editor ; fond arrondi et positif ; une seule session ouverte par caisse.
 - **Écritures restantes**, toutes par fonctions : `record_sale`, `void_sale`, `close_cash_session`. Plus aucun mouvement manuel (dépense, apport, retrait) n'est possible tant qu'aucune fonction dédiée n'existe.
-- **Interface** : elle appelle `open_cash_session` et, tant que la fonction n'existe pas, revient à l'insertion directe encore permise.
+- **Interface** : elle appelle `open_cash_session`. Le repli sur l'insertion directe, prévu quand la fonction est absente, n'est plus utilisé, et cette insertion serait de toute façon refusée.
 - **Test** `supabase/tests/pos_cash_lockdown.test.sql` : jamais exécuté.
 
-## Entrées de stock (migration `20261016022528_stock_entries_foundation`)
+## Entrées de stock (migration `20261016065722_stock_entries_foundation`)
 
-**Statut : préparée, NON TESTÉE (Docker indisponible), NON APPLIQUÉE.** Elle ne s'applique qu'avec l'autorisation écrite du propriétaire nommant `stock_entries_foundation`. Elle utilise `private.site_role`, créée par `pos_sales_foundation` (appliquée).
+**Statut : appliquée le 16/10/2026 sur le projet réel (version `20261016065722`), sur autorisation écrite du propriétaire. Non testée en exécution (aucun mouvement enregistré) ; vérifiée en lecture seule.** Elle utilise `private.site_role`, créée par `pos_sales_foundation`.
+
+- **Vérifié après application** :
+  - SQL enregistré identique au fichier (MD5 `310baf5a…`) ;
+  - `record_stock_movement` : SECURITY DEFINER, exécutable par `authenticated`, pas par `anon` ni `public` ;
+  - `stock_entries_version` : exécutable par `authenticated` seulement ;
+  - `inventory_movements` : `anon` et `authenticated` n'ont plus que SELECT ;
+  - 0 mouvement en base.
 
 - **`public.record_stock_movement(site, produit, emplacement, type, quantité, unité, motif)`** : SECURITY DEFINER, `search_path` vide, exécution retirée à `public` et `anon`, accordée à `authenticated`.
   - **Rôles** : propriétaire et admin seulement ; editor, publisher et viewer reçoivent l'erreur 42501.
