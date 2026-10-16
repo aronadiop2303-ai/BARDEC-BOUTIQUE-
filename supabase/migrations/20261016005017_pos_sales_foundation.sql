@@ -5,14 +5,15 @@
 -- NE PAS APPLIQUER sans l'autorisation écrite du propriétaire nommant « pos_sales_foundation ».
 --
 -- PRÉREQUIS
---   La migration fix_store_audit_trigger_columns doit être appliquée AVANT : le déclencheur
---   d'audit posé sur orders, inventory_movements et payment_transactions écrit aujourd'hui dans
---   des colonnes inexistantes, et ferait échouer toute vente. Le bloc 0 le vérifie et s'arrête sinon.
+--   La migration fix_store_audit_trigger_columns doit être appliquée AVANT (c'est le cas sur le projet
+--   réel depuis le 16/10/2026, version 20261016004129). Sans elle, le déclencheur d'audit posé sur orders,
+--   inventory_movements et payment_transactions ferait échouer toute vente. Le bloc 0 le vérifie.
 --
 -- CONTENU
 --   a) orders : vente comptoir sans client (customer_id, customer_phone facultatifs), canal, caissier,
 --      session de caisse, montant remis, monnaie rendue, résumé des paiements, détail des remises.
---      order_items : quantité numérique (kg, m, m²), unité, remise de ligne, coût figé (facultatif).
+--      order_items : quantité numérique (kg, m, m²), unité, remise de ligne, coût figé (facultatif) ;
+--      line_total, colonne calculée aujourd'hui, devient une colonne normale (brut − remise de ligne).
 --      payment_transactions : moyen de paiement et fournisseurs manuels (aucun paiement réel).
 --      cash_register_sessions : une seule session ouverte par caisse et par site.
 --   b) document_counters + private.next_document_number : numéro continu par site, type et année,
@@ -57,8 +58,11 @@
 --   alter table public.order_items drop column if exists unit_id, drop column if exists unit_label,
 --     drop column if exists line_discount, drop column if exists cost_price_snapshot;
 --   alter table public.order_items drop constraint order_items_quantity_check;
+--   alter table public.order_items drop column line_total;
 --   alter table public.order_items alter column quantity type integer using quantity::integer;
 --   alter table public.order_items add constraint order_items_quantity_check check (quantity >= 1 and quantity <= 999);
+--   -- line_total ne redevient une colonne calculée qu'une fois quantity revenue en integer :
+--   alter table public.order_items add column line_total numeric generated always as ((quantity)::numeric * unit_price) stored;
 --   alter table public.orders drop constraint if exists orders_pos_session_check;
 --   alter table public.orders drop column if exists sales_channel, drop column if exists cashier_id,
 --     drop column if exists cash_session_id, drop column if exists amount_tendered, drop column if exists change_given,
@@ -106,8 +110,23 @@ alter table public.orders
 create index orders_cash_session_idx on public.orders (cash_session_id) where cash_session_id is not null;
 create index orders_site_placed_idx on public.orders (site_id, placed_at desc);
 
+-- line_total est aujourd'hui une colonne calculée (quantity::numeric * unit_price) : elle bloque le changement
+-- de type de quantity (erreur 0A000) et ne peut pas porter la remise de ligne. Elle devient une colonne normale,
+-- écrite par record_sale (brut − remise de ligne). La table est vide au 16/10/2026 ; on refuse sinon.
+do $empty$
+begin
+  if exists (select 1 from public.order_items) then
+    raise exception 'order_items contient des lignes : recréer line_total à 0 fausserait leurs montants.';
+  end if;
+end;
+$empty$;
+
+alter table public.order_items drop column line_total;
 alter table public.order_items drop constraint order_items_quantity_check;
 alter table public.order_items alter column quantity type numeric(14,3) using quantity::numeric;
+alter table public.order_items
+  add column line_total numeric(14,2) not null default 0
+    constraint order_items_line_total_check check (line_total >= 0);
 alter table public.order_items
   add constraint order_items_quantity_check check (quantity > 0 and quantity <= 999999);
 
@@ -230,7 +249,8 @@ revoke all on function private.next_document_number(uuid, text) from public, ano
 -- p_payments : [{ "method": "cash"|"wave"|"orange_money"|"card"|"credit", "amount": montant, "reference": texte? }]
 --              Les espèces peuvent dépasser le reste à payer : la différence est la monnaie rendue.
 -- p_customer : { "name": texte?, "phone": texte? }   (obligatoire en cas de crédit)
--- p_discount : { "type": "amount"|"percent", "value": nombre, "reason": texte }
+-- p_discount : { "type": "amount"|"percent", "value": nombre, "reason": texte } ; { "reason": texte } seul
+--              suffit pour des remises de ligne. Motif obligatoire dès qu'une remise existe.
 create or replace function public.record_sale(
   p_site_id uuid,
   p_cash_session_id uuid,
@@ -467,11 +487,16 @@ begin
   end loop;
 
   -- Remise globale et limite par rôle.
-  if coalesce(p_discount, '{}'::jsonb) <> '{}'::jsonb then
+  -- p_discount peut ne porter que le motif ({"reason": …}) quand seules des remises de ligne sont appliquées.
+  p_discount := coalesce(p_discount, '{}'::jsonb);
+  v_discount_value := coalesce(nullif(p_discount ->> 'value', '')::numeric, 0);
+  if v_discount_value < 0 then
+    raise exception 'Remise invalide.' using errcode = '22023';
+  end if;
+  if v_discount_value > 0 then
     v_discount_type := p_discount ->> 'type';
-    v_discount_value := coalesce(nullif(p_discount ->> 'value', '')::numeric, 0);
-    if v_discount_value < 0 or v_discount_type is null or v_discount_type not in ('amount', 'percent') then
-      raise exception 'Remise invalide.' using errcode = '22023';
+    if v_discount_type is null or v_discount_type not in ('amount', 'percent') then
+      raise exception 'Remise invalide : type attendu amount ou percent.' using errcode = '22023';
     end if;
     if v_discount_type = 'percent' then
       if v_discount_value > 100 then
