@@ -48,7 +48,27 @@ Multi-emplacements (`stock_locations`), seuils, inventaire, pertes, lots, réser
 
 ### 2.5 Ventes, clients, crédit, achats, caisse, documents, rapports
 
-Décrits dans le cahier des charges (sections 3.6 à 3.14). Tous **À faire** (Q3 à Q6). Caisse : uniquement `cash_register_*`.
+Décrits dans le cahier des charges (sections 3.6 à 3.14). Caisse : uniquement `cash_register_*`.
+
+**Ventes et caisse (Q3) : code écrit, migration préparée, NON TESTÉE, NON APPLIQUÉE.**
+
+- **Migration** `supabase/migrations/20261016005017_pos_sales_foundation.sql` :
+  - vente comptoir sans client, quantités numériques ;
+  - numérotation `TICKET-AAAA-000001` sans trou ;
+  - fonctions `record_sale`, `void_sale`, `cash_session_summary` (X) et `close_cash_session` (Z).
+  - Elle exige d'abord `fix_store_audit_trigger_columns` (branche `fix/store-audit-trigger`) et s'arrête si ce correctif manque.
+- **Test SQL** `supabase/tests/pos_sales_foundation.test.sql` : jamais exécuté (Docker indisponible).
+- **Domaine** `src/domain/pos/` : calcul de ligne, totaux, remises par rôle, monnaie à rendre, numérotation, mentions légales. Tests Vitest OK.
+- **Écran** « Ventes et caisse » (`PosPage.tsx`) :
+  - ouverture de caisse, rapport X et clôture Z ;
+  - panier en quantités fractionnaires, paiements multiples, encaissement par `record_sale` ;
+  - historique du jour, réimpression et annulation (admin).
+  - Tout est désactivé, avec un message, tant que la migration est absente.
+- **Impression** (`Receipt.tsx`) : ticket 80 mm (72 mm imprimables, police à chasse fixe) et reçu A4, depuis `content_snapshot` seulement.
+- **Paiements** : Wave, Orange Money et carte sont des enregistrements **manuels**. Aucun paiement réel n'est exécuté.
+- **Taxes** : aucune TVA calculée (`tax_total = 0`). Aucune conformité fiscale n'est revendiquée.
+
+Clients, crédit, achats, documents A4 numérotés (factures, avoirs) et rapports restent **À faire** (Q4 à Q6).
 
 ## 3. Lacunes vérifiées (lecture du schéma réel, 14–15/10/2026)
 
@@ -57,9 +77,9 @@ Décrits dans le cahier des charges (sections 3.6 à 3.14). Tous **À faire** (Q
 | a | Pas de prix d'achat ni de coût moyen | Aucune marge | Q2 |
 | b | Pas de clients, plafond, solde, paiement partiel | Pas de crédit client | Q4 |
 | c | Pas de fournisseurs, bons de commande, réceptions | Pas d'achats | Q4 |
-| d | `orders.customer_id` et `customer_phone` obligatoires ; pas de canal ni de vendeur | Vente comptoir anonyme impossible | Q3 |
+| d | `orders.customer_id` et `customer_phone` obligatoires ; pas de canal ni de vendeur | Vente comptoir anonyme impossible | Q3 : traité par `pos_sales_foundation` (non appliquée) |
 | e | Pas de vue ni de fonction « niveau de stock » ; `inventory_movements` en lecture seule pour les clients | Stock consultable (agrégé par le Studio), **saisie bloquée** | Q2 |
-| f | Pas de numérotation sans trou, pas de retours, pas de dépenses catégorisées | Documents et avoirs impossibles | Q3/Q5 |
+| f | Pas de numérotation sans trou, pas de retours, pas de dépenses catégorisées | Documents et avoirs impossibles | Q3 : numérotation et annulation préparées (non appliquées) ; avoirs et dépenses : Q5 |
 | g | Rôles : ni caissier, ni vendeur, ni magasinier, ni gérant | Matrice réduite aux 4 rôles | Q6 |
 | h | Pas de colonne « unité de base » sur `products` | Convention `conversion_to_base = 1` | Q2 |
 | i | `stock_locations` sans unicité du nom | L'assistant vérifie avant d'insérer (course possible entre deux onglets) | Q2 |
@@ -129,7 +149,7 @@ solde = Σ écritures ; plafond vérifié par la base
 |---|---|---|
 | **Q1** | Espace de gestion, configuration, catalogue, consultation du stock | **Code fait, tests automatiques OK, non testé en réel** |
 | Q2 | Stock complet + prix d'achat/coût | À faire (migration requise) |
-| Q3 | Caisse et ventes comptoir | À faire (migration requise) |
+| Q3 | Caisse et ventes comptoir | **Code et tests Vitest faits ; migration préparée, non testée, non appliquée** (prérequis : correctif d'audit) |
 | Q4 | Clients, crédit, fournisseurs, achats | À faire (migration requise) |
 | Q5 | Devis, factures, bons de livraison, avoirs | À faire |
 | Q6 | Rapports, alertes, rôles fins, audit | À faire |

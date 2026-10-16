@@ -53,6 +53,43 @@ Données de référence : 4 secteurs, 4 sous-secteurs, 4 spécialités (Commerce
 - **Parcours invité conservé** : seule politique d'écriture `anon` trouvée (lecture de `pg_policies`, 14/10/2026) : `business_inquiries.inquiries_public_insert`. Son `INSERT` n'est pas touché.
 - **Limites** : un éditeur peut encore modifier un site déjà publié et le dépublier ; la lecture anonyme expose toujours toutes les colonnes des sites publiés.
 
+## Ventes en caisse (migration `20261016005017_pos_sales_foundation`)
+
+**Statut : préparée, NON TESTÉE (Docker indisponible), NON APPLIQUÉE.** Elle ne s'applique qu'avec l'autorisation écrite du propriétaire nommant `pos_sales_foundation`.
+
+- **Prérequis** : `fix_store_audit_trigger_columns`, branche `fix/store-audit-trigger`, également non appliquée.
+  - Sans ce correctif, toute écriture sur `orders`, `inventory_movements`, `payment_transactions`, `products` ou `stock_locations` échoue à cause du déclencheur d'audit.
+  - La migration vérifie ce prérequis et s'arrête s'il manque.
+- **`orders`** :
+  - `customer_id` et `customer_phone` deviennent facultatifs ;
+  - nouvelles colonnes : `sales_channel` (`pos`, `online`, `quote`), `cashier_id`, `cash_session_id` (obligatoire si `pos`), `amount_tendered`, `change_given`, `payment_summary` et `discount_details` (remise tracée : montant, motif, auteur, rôle, limite).
+- **`order_items`** : `quantity` devient `numeric(14,3)`, de 0 exclu à 999 999. Ajouts : `unit_id`, `unit_label`, `line_discount`, `cost_price_snapshot` (toujours vide : aucun prix d'achat en base).
+- **`payment_transactions`** :
+  - ajout de `payment_method` (`cash`, `wave`, `orange_money`, `card`, `credit`) ;
+  - fournisseurs manuels ajoutés à la contrainte : `manual_cash`, `manual_wave`, `manual_orange_money`, `manual_card`, `store_credit`.
+- **`cash_register_sessions`** : une seule session ouverte par site et par caisse (index unique partiel).
+- **`document_counters`** et **`private.next_document_number`** :
+  - numéro continu par site, par type et par année, au format `TICKET-2026-000001` ;
+  - un verrou de ligne empêche les doublons, et l'incrément est annulé avec la transaction : pas de trou.
+- **Fonctions** (SECURITY DEFINER, `search_path` vide, exécution retirée à `public` et `anon`, accordée à `authenticated`) :
+  - `record_sale` : propriétaire, admin ou editor.
+    - Elle relit les prix (palier, sinon prix × conversion) et ignore tout prix envoyé par le client.
+    - Elle contrôle le stock par emplacement (refus sauf `allow_backorder` ou `settings.pos.allow_negative_stock`).
+    - Remise : 100 % pour propriétaire et admin ; `settings.pos.editor_max_discount_percent` pour un editor (0 par défaut), avec motif obligatoire.
+    - Elle écrit commande, lignes, sorties de stock, paiements manuels, mouvement de caisse (espèces nettes) et reçu avec instantané complet, dans une seule transaction.
+  - `void_sale` : propriétaire ou admin, motif obligatoire.
+    - Elle crée les mouvements de stock inverses, marque les paiements remboursés ou annulés et la commande `cancelled`, et marque le document `void` sans jamais le supprimer.
+    - Le remboursement en espèces n'est inscrit que si la session d'origine est encore ouverte.
+  - `cash_session_summary` (X) : réservée aux membres.
+  - `close_cash_session` (Z) : propriétaire, admin ou personne qui a ouvert la caisse. Elle calcule l'attendu et l'écart. Les `correction` sont exclues et rapportées à part.
+- **Test** `supabase/tests/pos_sales_foundation.test.sql` (ROLLBACK, « NE JAMAIS EXÉCUTER SUR LE PROJET RÉEL ») : **jamais exécuté**.
+- **Non traité** :
+  - TVA : aucun calcul ;
+  - avoirs et factures numérotées : Q5 ;
+  - crédit client avec solde et plafond : Q4 ;
+  - coût et marge : Q2.
+  - La RLS existante permet encore à un membre (y compris publisher) d'insérer des `cash_register_movements` et à la personne qui a ouvert la caisse de modifier sa session directement. Resserrer ces règles est une décision à prendre.
+
 ## Points connus à traiter (non corrigés)
 
 1. **Tables en double** : `cash_sessions` / `cash_movements` et `cash_register_sessions` / `cash_register_movements` (mêmes rôles, colonnes différentes) ; `stores` semble doublonner `sites` (RLS activé, aucune politique).
