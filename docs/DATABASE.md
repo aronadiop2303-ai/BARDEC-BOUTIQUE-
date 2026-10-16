@@ -112,6 +112,24 @@ Données de référence : 4 secteurs, 4 sous-secteurs, 4 spécialités (Commerce
 - **Interface** : elle appelle `open_cash_session` et, tant que la fonction n'existe pas, revient à l'insertion directe encore permise.
 - **Test** `supabase/tests/pos_cash_lockdown.test.sql` : jamais exécuté.
 
+## Entrées de stock (migration `20261016022528_stock_entries_foundation`)
+
+**Statut : préparée, NON TESTÉE (Docker indisponible), NON APPLIQUÉE.** Elle ne s'applique qu'avec l'autorisation écrite du propriétaire nommant `stock_entries_foundation`. Elle utilise `private.site_role`, créée par `pos_sales_foundation` (appliquée).
+
+- **`public.record_stock_movement(site, produit, emplacement, type, quantité, unité, motif)`** : SECURITY DEFINER, `search_path` vide, exécution retirée à `public` et `anon`, accordée à `authenticated`.
+  - **Rôles** : propriétaire et admin seulement ; editor, publisher et viewer reçoivent l'erreur 42501.
+  - **Types** : `initial_stock`, `restock`, `damage` (quantité positive) et `adjustment` (positif ou négatif). Les autres types restent réservés aux fonctions de vente.
+  - **Produit** : du site, actif, stock suivi. **Emplacement** : du site, actif.
+  - **Unité** : une unité de vente du produit, convertie vers l'unité de base ; décimales limitées par l'unité.
+  - **Stock négatif** : une sortie qui le rendrait négatif est refusée, sauf `allow_backorder` ou `settings.pos.allow_negative_stock`.
+  - **Motif** : 3 à 500 caractères, obligatoire pour `adjustment` et `damage`.
+  - **Inventaire initial** : une seule fois par produit et par emplacement.
+  - Le mouvement est écrit avec `reference_type = 'manual_entry'` ; l'audit passe par le déclencheur existant.
+- **`public.stock_entries_version()`** : sonde sans effet, qui permet à l'interface de détecter la migration.
+- **Droits** : INSERT, UPDATE et DELETE retirés sur `inventory_movements` à `anon` et `authenticated`. Aucune politique d'écriture n'existait ; c'est une seconde barrière.
+- **Coût d'achat non traité** : `products_public_read` expose toutes les colonnes de `products` aux visiteurs des sites publiés. Une table séparée lisible par propriétaire et admin est proposée.
+- **Test** `supabase/tests/stock_entries_foundation.test.sql` : jamais exécuté.
+
 ## Points connus à traiter (non corrigés)
 
 1. **Tables en double** : `cash_sessions` / `cash_movements` et `cash_register_sessions` / `cash_register_movements` (mêmes rôles, colonnes différentes) ; `stores` semble doublonner `sites` (RLS activé, aucune politique).
