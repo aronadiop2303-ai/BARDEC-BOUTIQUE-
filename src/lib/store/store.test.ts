@@ -43,8 +43,8 @@ describe('garde d’accès', () => {
   })
 
   it('applique la matrice : seuls propriétaire et admin configurent et modifient le catalogue', () => {
-    expect(permissionsFor('owner')).toMatchObject({ configure: true, editCatalog: true, writeStock: false })
-    expect(permissionsFor('admin')).toMatchObject({ configure: true, editCatalog: true })
+    expect(permissionsFor('owner')).toMatchObject({ configure: true, editCatalog: true, writeStock: true })
+    expect(permissionsFor('admin')).toMatchObject({ configure: true, editCatalog: true, writeStock: true })
     for (const role of ['editor', 'publisher', 'viewer'] as const) {
       expect(permissionsFor(role)).toMatchObject({ configure: false, editCatalog: false, archiveProducts: false, writeStock: false })
     }

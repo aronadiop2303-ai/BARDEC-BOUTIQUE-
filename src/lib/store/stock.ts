@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { aggregateStock, type MovementRow, type StockLevel } from '../../domain/hardware/stock'
-import { toError } from '../errors'
+import type { ManualMovementType, MovementType } from '../../domain/stock/movements'
+import { toError, type DbError } from '../errors'
 
 export type LocationType = 'store' | 'warehouse' | 'shop_floor' | 'vehicle' | 'consignment' | 'other'
 
@@ -70,4 +71,74 @@ export async function countMovements(client: SupabaseClient, siteId: string): Pr
   const { count, error } = await client.from('inventory_movements').select('id', { count: 'exact', head: true }).eq('site_id', siteId)
   if (error) throw toError(error)
   return count ?? 0
+}
+
+// ── Mouvements manuels (migration stock_entries_foundation) ──────────────────
+
+const NOT_INSTALLED = new Set(['PGRST202', '42883'])
+
+/** Vrai si la fonction public.record_stock_movement est en base (sonde sans effet stock_entries_version). */
+export async function stockEntriesAvailable(client: SupabaseClient): Promise<boolean> {
+  const { error } = await client.rpc('stock_entries_version')
+  if (!error) return true
+  if (error.code && NOT_INSTALLED.has(error.code)) return false
+  throw toError(error)
+}
+
+/** Messages de la fonction SQL, rédigés en français : affichés tels quels. */
+function movementError(error: DbError): Error {
+  if (error.code && NOT_INSTALLED.has(error.code)) return new Error('Disponible après la mise à jour de la base.')
+  if (error.code && ['42501', '22023', '23514'].includes(error.code)) return Object.assign(new Error(error.message), { code: error.code })
+  return toError(error)
+}
+
+export type MovementRequest = {
+  siteId: string
+  productId: string
+  locationId: string
+  type: ManualMovementType
+  quantity: number
+  unitId: string
+  reason: string
+}
+
+export type MovementResult = { movement_id: string; quantity_delta: number; stock_before: number; stock_after: number; unit_label: string }
+
+export async function recordStockMovement(client: SupabaseClient, request: MovementRequest): Promise<MovementResult> {
+  const { data, error } = await client.rpc('record_stock_movement', {
+    p_site_id: request.siteId,
+    p_product_id: request.productId,
+    p_location_id: request.locationId,
+    p_movement_type: request.type,
+    p_quantity: request.quantity,
+    p_unit_id: request.unitId,
+    p_reason: request.reason.trim() || null,
+  })
+  if (error) throw movementError(error)
+  return data as MovementResult
+}
+
+export type MovementHistoryRow = {
+  id: string
+  movement_type: MovementType
+  quantity_delta: number
+  unit_quantity: number | null
+  unit_id: string | null
+  stock_location_id: string | null
+  reason: string | null
+  reference_type: string | null
+  created_at: string
+}
+
+/** Derniers mouvements d'un produit (lecture permise aux membres par la RLS). */
+export async function listProductMovements(client: SupabaseClient, siteId: string, productId: string, limit = 50): Promise<MovementHistoryRow[]> {
+  const { data, error } = await client.from('inventory_movements')
+    .select('id,movement_type,quantity_delta,unit_quantity,unit_id,stock_location_id,reason,reference_type,created_at')
+    .eq('site_id', siteId).eq('product_id', productId).order('created_at', { ascending: false }).limit(limit)
+  if (error) throw toError(error)
+  return ((data ?? []) as MovementHistoryRow[]).map((row) => ({
+    ...row,
+    quantity_delta: Number(row.quantity_delta),
+    unit_quantity: row.unit_quantity === null ? null : Number(row.unit_quantity),
+  }))
 }
