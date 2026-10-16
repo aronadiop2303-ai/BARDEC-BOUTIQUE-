@@ -9,7 +9,7 @@
 -- Tout se passe dans une transaction terminée par ROLLBACK : aucune donnée ne reste.
 --
 -- Scénarios : vente comptoir sans client ; quantité fractionnaire ; stock insuffisant refusé ;
--- prix envoyé par le client ignoré ; palier appliqué ; viewer refusé ; numérotation continue
+-- prix envoyé par le client ignoré ; palier appliqué ; line_total d'une ligne fractionnaire remisée (2,5 kg) ; viewer refusé ; numérotation continue
 -- (y compris après un échec) ; annulation avec contre-passation ; isolation entre deux sites ;
 -- remise hors limite refusée ; clôture Z.
 -- =============================================================================
@@ -47,28 +47,32 @@ insert into public.product_units (id, site_id, code, label, dimension, decimal_p
   ('a4000000-0000-4000-8000-000000000001', 'a2000000-0000-4000-8000-000000000000', 'u', 'Pièce', 'count', 0),
   ('a4000000-0000-4000-8000-000000000002', 'a2000000-0000-4000-8000-000000000000', 'm', 'Mètre', 'length', 2),
   ('a4000000-0000-4000-8000-000000000003', 'a2000000-0000-4000-8000-000000000000', 'rouleau', 'Rouleau', 'count', 0),
+  ('a4000000-0000-4000-8000-000000000004', 'a2000000-0000-4000-8000-000000000000', 'kg', 'Kilogramme', 'mass', 3),
   ('b4000000-0000-4000-8000-000000000001', 'b2000000-0000-4000-8000-000000000000', 'u', 'Pièce', 'count', 0);
 
 -- Produits : marteau (pièce, 5 000), câble (mètre, 350 ; rouleau de 100 m), produit du site B.
 insert into public.products (id, site_id, name, slug, status, price) values
   ('a5000000-0000-4000-8000-000000000001', 'a2000000-0000-4000-8000-000000000000', 'Marteau', 'marteau-test', 'active', 5000),
   ('a5000000-0000-4000-8000-000000000002', 'a2000000-0000-4000-8000-000000000000', 'Câble 2,5 mm²', 'cable-test', 'active', 350),
+  ('a5000000-0000-4000-8000-000000000003', 'a2000000-0000-4000-8000-000000000000', 'Clous en vrac', 'clous-test', 'active', 1500),
   ('b5000000-0000-4000-8000-000000000001', 'b2000000-0000-4000-8000-000000000000', 'Pince B', 'pince-b-test', 'active', 2000);
 
 insert into public.product_sell_units (site_id, product_id, unit_id, conversion_to_base, is_default, min_sale_quantity, quantity_step) values
   ('a2000000-0000-4000-8000-000000000000', 'a5000000-0000-4000-8000-000000000001', 'a4000000-0000-4000-8000-000000000001', 1, true, 1, 1),
   ('a2000000-0000-4000-8000-000000000000', 'a5000000-0000-4000-8000-000000000002', 'a4000000-0000-4000-8000-000000000002', 1, true, 0.5, 0.5),
   ('a2000000-0000-4000-8000-000000000000', 'a5000000-0000-4000-8000-000000000002', 'a4000000-0000-4000-8000-000000000003', 100, false, 1, 1),
+  ('a2000000-0000-4000-8000-000000000000', 'a5000000-0000-4000-8000-000000000003', 'a4000000-0000-4000-8000-000000000004', 1, true, 0.5, 0.5),
   ('b2000000-0000-4000-8000-000000000000', 'b5000000-0000-4000-8000-000000000001', 'b4000000-0000-4000-8000-000000000001', 1, true, 1, 1);
 
 -- Palier : marteau à 4 500 à partir de 10 pièces.
 insert into public.price_tiers (site_id, product_id, unit_id, min_quantity, unit_price) values
   ('a2000000-0000-4000-8000-000000000000', 'a5000000-0000-4000-8000-000000000001', 'a4000000-0000-4000-8000-000000000001', 10, 4500);
 
--- Stock initial : 20 marteaux, 300 m de câble, 5 pinces (site B).
+-- Stock initial : 20 marteaux, 300 m de câble, 50 kg de clous, 5 pinces (site B).
 insert into public.inventory_movements (site_id, product_id, movement_type, quantity_delta, stock_location_id) values
   ('a2000000-0000-4000-8000-000000000000', 'a5000000-0000-4000-8000-000000000001', 'initial_stock', 20, 'a3000000-0000-4000-8000-000000000000'),
   ('a2000000-0000-4000-8000-000000000000', 'a5000000-0000-4000-8000-000000000002', 'initial_stock', 300, 'a3000000-0000-4000-8000-000000000000'),
+  ('a2000000-0000-4000-8000-000000000000', 'a5000000-0000-4000-8000-000000000003', 'initial_stock', 50, 'a3000000-0000-4000-8000-000000000000'),
   ('b2000000-0000-4000-8000-000000000000', 'b5000000-0000-4000-8000-000000000001', 'initial_stock', 5, 'b3000000-0000-4000-8000-000000000000');
 
 -- Sessions de caisse ouvertes : A (par l'editor), B (par owner B).
@@ -223,7 +227,14 @@ insert into test_results select 'sale10', public.record_sale(
   '[{"product_id":"a5000000-0000-4000-8000-000000000001","quantity":1}]',
   '[{"method":"cash","amount":5000}]');
 
-insert into test_results select 'close', public.close_cash_session('a6000000-0000-4000-8000-000000000000', 60000, 'Test Z');
+-- 11. Ligne fractionnaire remisée : 2,5 kg × 1 500 = 3 750, remise de ligne 150 → line_total 3 600.
+--     Seul le motif est transmis dans p_discount (aucune remise globale).
+insert into test_results select 'sale11', public.record_sale(
+  'a2000000-0000-4000-8000-000000000000', 'a6000000-0000-4000-8000-000000000000',
+  '[{"product_id":"a5000000-0000-4000-8000-000000000003","quantity":2.5,"discount":150}]',
+  '[{"method":"cash","amount":3600}]', '{}', '{"reason":"Geste commercial"}');
+
+insert into test_results select 'close', public.close_cash_session('a6000000-0000-4000-8000-000000000000', 63600, 'Test Z');
 
 reset role;
 
@@ -237,6 +248,8 @@ declare
   v_sale2 jsonb := (select payload from test_results where sale = 'sale2');
   v_sale4 jsonb := (select payload from test_results where sale = 'sale4');
   v_sale10 jsonb := (select payload from test_results where sale = 'sale10');
+  v_sale11 jsonb := (select payload from test_results where sale = 'sale11');
+  v_item public.order_items%rowtype;
   v_void jsonb := (select payload from test_results where sale = 'void1');
   v_close jsonb := (select payload from test_results where sale = 'close');
   v_order public.orders%rowtype;
@@ -283,8 +296,20 @@ begin
   assert (select count(*) from public.store_documents where site_id = 'b2000000-0000-4000-8000-000000000000') = 0,
     'isolation : document créé sur le site B';
 
-  -- Clôture Z : 10 000 + 10 000 + 45 000 + 5 000 − 10 000 (remboursement) = 60 000 attendus.
-  assert (v_close ->> 'expected_cash')::numeric = 60000, 'Z : espèces attendues ' || (v_close ->> 'expected_cash');
+  -- 11. line_total = quantité × prix − remise de ligne, sur une quantité fractionnaire.
+  select * into v_item from public.order_items where order_id = (v_sale11 ->> 'order_id')::uuid;
+  assert v_item.quantity = 2.5 and v_item.unit_price = 1500 and v_item.line_discount = 150, 'vente 11 : ligne';
+  assert v_item.line_total = v_item.quantity * v_item.unit_price - v_item.line_discount, 'vente 11 : line_total ' || v_item.line_total;
+  assert v_item.line_total = 3600, 'vente 11 : line_total attendu 3 600';
+  assert (v_sale11 ->> 'grand_total')::numeric = 3600, 'vente 11 : total';
+  assert (select discount_details ->> 'reason' from public.orders where id = (v_sale11 ->> 'order_id')::uuid) = 'Geste commercial',
+    'vente 11 : motif de remise non tracé';
+  assert (select sum(quantity_delta) from public.inventory_movements where product_id = 'a5000000-0000-4000-8000-000000000003') = 47.5,
+    'vente 11 : stock des clous';
+  assert v_sale11 ->> 'document_number' = 'TICKET-' || v_year || '-000005', 'numéro 5';
+
+  -- Clôture Z : 10 000 + 10 000 + 45 000 + 5 000 + 3 600 − 10 000 (remboursement) = 63 600 attendus.
+  assert (v_close ->> 'expected_cash')::numeric = 63600, 'Z : espèces attendues ' || (v_close ->> 'expected_cash');
   assert (v_close ->> 'discrepancy')::numeric = 0, 'Z : écart';
   assert v_close ->> 'status' = 'closed', 'Z : statut';
   assert (v_close -> 'by_method' -> 'wave' ->> 'amount')::numeric = 875, 'Z : total Wave';
