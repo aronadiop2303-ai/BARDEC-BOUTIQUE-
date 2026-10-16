@@ -53,6 +53,19 @@ Données de référence : 4 secteurs, 4 sous-secteurs, 4 spécialités (Commerce
 - **Parcours invité conservé** : seule politique d'écriture `anon` trouvée (lecture de `pg_policies`, 14/10/2026) : `business_inquiries.inquiries_public_insert`. Son `INSERT` n'est pas touché.
 - **Limites** : un éditeur peut encore modifier un site déjà publié et le dépublier ; la lecture anonyme expose toujours toutes les colonnes des sites publiés.
 
+## Correctif du déclencheur d'audit (migration `20261016004129_fix_store_audit_trigger_columns`)
+
+**Statut : appliquée sur le projet réel le 16/10/2026, version `20261016004129`. Non testée sur base locale ; vérifiée en lecture seule.**
+
+- **Défaut corrigé** : `private.capture_store_audit_event()` écrivait dans `store_audit_events.event_type`, `before_data` et `after_data`, colonnes inexistantes, avec `source = 'database_trigger'`, une valeur refusée par la contrainte.
+  - Toute écriture rattachée à un site échouait sur les 8 tables auditées : `products`, `product_variants`, `inventory_movements`, `orders`, `payment_transactions`, `quotes`, `stock_locations` et `product_batches`.
+  - Effet observé : l'assistant de configuration a créé le profil boutique, puis s'est arrêté au premier emplacement de stock.
+- **Correctif** : l'insertion utilise `event_key` (`<table>.<opération>`), `severity = 'info'`, `details` (`{"before", "after"}`, mêmes données personnelles masquées) et `source = 'system'`.
+- **Vérifié en lecture seule** : la version est enregistrée dans `supabase_migrations.schema_migrations`, et la fonction en base ne contient plus `before_data`.
+- **Écart entre le fichier et la base** : le SQL enregistré en base est la même fonction, mais sans le bloc de commentaires d'en-tête et avec une mise en forme légèrement différente de l'insertion. Les colonnes et valeurs sont identiques, les empreintes MD5 diffèrent.
+  - Le fichier du dépôt a été renommé sans être modifié. Son en-tête indique encore « NON APPLIQUÉE », ce qui n'est plus vrai.
+- **Non vérifié** : le comportement réel lors d'une écriture. Aucun test d'écriture n'a été fait sur la base réelle.
+
 ## Points connus à traiter (non corrigés)
 
 1. **Tables en double** : `cash_sessions` / `cash_movements` et `cash_register_sessions` / `cash_register_movements` (mêmes rôles, colonnes différentes) ; `stores` semble doublonner `sites` (RLS activé, aucune politique).
