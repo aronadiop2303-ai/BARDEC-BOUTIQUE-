@@ -1,7 +1,7 @@
 -- =============================================================================
 -- NE JAMAIS EXÉCUTER SUR LE PROJET RÉEL.
 -- =============================================================================
--- Test de la migration 20261016005017_pos_sales_foundation.sql.
+-- Test de la migration 20261016014204_pos_sales_foundation.sql.
 -- STATUT : NON TESTÉE (Docker indisponible : ce fichier n'a jamais été exécuté).
 -- À exécuter UNIQUEMENT sur une base locale jetable (supabase start), en tant que postgres,
 -- après application de toutes les migrations (fix_store_audit_trigger_columns compris) :

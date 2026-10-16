@@ -50,9 +50,9 @@ Multi-emplacements (`stock_locations`), seuils, inventaire, pertes, lots, réser
 
 Décrits dans le cahier des charges (sections 3.6 à 3.14). Caisse : uniquement `cash_register_*`.
 
-**Ventes et caisse (Q3) : code écrit, migration préparée, NON TESTÉE, NON APPLIQUÉE.**
+**Ventes et caisse (Q3) : code écrit ; migration des ventes appliquée le 16/10/2026, non testée en exécution ; verrouillage de la caisse non appliqué.**
 
-- **Migration** `supabase/migrations/20261016005017_pos_sales_foundation.sql` :
+- **Migration** `supabase/migrations/20261016014204_pos_sales_foundation.sql`, **appliquée le 16/10/2026, non testée en exécution** :
   - vente comptoir sans client, quantités numériques ;
   - numérotation `TICKET-AAAA-000001` sans trou ;
   - fonctions `record_sale`, `void_sale`, `cash_session_summary` (X) et `close_cash_session` (Z).
@@ -151,7 +151,7 @@ solde = Σ écritures ; plafond vérifié par la base
 |---|---|---|
 | **Q1** | Espace de gestion, configuration, catalogue, consultation du stock | **Code fait, tests automatiques OK, non testé en réel** |
 | Q2 | Stock complet + prix d'achat/coût | À faire (migration requise) |
-| Q3 | Caisse et ventes comptoir | **Code et tests Vitest faits ; migrations `pos_sales_foundation` et `pos_cash_lockdown` préparées, non testées, non appliquées** (correctif d'audit appliqué) |
+| Q3 | Caisse et ventes comptoir | **Code et tests Vitest faits ; `pos_sales_foundation` appliquée le 16/10/2026, non testée en exécution ; `pos_cash_lockdown` préparée, non appliquée** |
 | Q4 | Clients, crédit, fournisseurs, achats | À faire (migration requise) |
 | Q5 | Devis, factures, bons de livraison, avoirs | À faire |
 | Q6 | Rapports, alertes, rôles fins, audit | À faire |

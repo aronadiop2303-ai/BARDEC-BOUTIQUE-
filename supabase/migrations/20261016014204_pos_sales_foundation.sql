@@ -1,8 +1,10 @@
 -- =============================================================================
 -- Fondation des ventes en caisse (jalon Q3) : vente comptoir, numérotation, annulation, clôture Z
 -- =============================================================================
--- STATUT : PRÉPARÉE, NON TESTÉE (Docker indisponible), NON APPLIQUÉE.
--- NE PAS APPLIQUER sans l'autorisation écrite du propriétaire nommant « pos_sales_foundation ».
+-- STATUT : APPLIQUÉE le 16/10/2026 sur le projet réel (version 20261016014204), sur autorisation écrite du
+-- propriétaire ; non testée en exécution (aucune vente enregistrée, test SQL jamais exécuté).
+-- Vérifiée en lecture seule après application. Le SQL appliqué est celui de ce fichier avant la mise à jour
+-- de ces deux lignes d'en-tête (empreinte MD5 identique, fins de ligne LF).
 --
 -- PRÉREQUIS
 --   La migration fix_store_audit_trigger_columns doit être appliquée AVANT (c'est le cas sur le projet

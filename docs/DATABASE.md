@@ -53,9 +53,19 @@ Données de référence : 4 secteurs, 4 sous-secteurs, 4 spécialités (Commerce
 - **Parcours invité conservé** : seule politique d'écriture `anon` trouvée (lecture de `pg_policies`, 14/10/2026) : `business_inquiries.inquiries_public_insert`. Son `INSERT` n'est pas touché.
 - **Limites** : un éditeur peut encore modifier un site déjà publié et le dépublier ; la lecture anonyme expose toujours toutes les colonnes des sites publiés.
 
-## Ventes en caisse (migration `20261016005017_pos_sales_foundation`)
+## Ventes en caisse (migration `20261016014204_pos_sales_foundation`)
 
-**Statut : préparée, NON TESTÉE (Docker indisponible), NON APPLIQUÉE.** Elle ne s'applique qu'avec l'autorisation écrite du propriétaire nommant `pos_sales_foundation`.
+**Statut : appliquée le 16/10/2026 sur le projet réel (version `20261016014204`), sur autorisation écrite du propriétaire. Non testée en exécution : aucune vente n'a été enregistrée et le test SQL n'a jamais tourné. Vérifiée en lecture seule.**
+
+- **Vérifié après application (lecture seule)** :
+  - le SQL enregistré est identique au fichier (MD5 `bc634c63…`) ;
+  - les 4 fonctions publiques sont exécutables par `authenticated`, pas par `anon` ni `public` ; `private.site_role` et `private.next_document_number` ne sont pas exécutables par `authenticated` ;
+  - `order_items.line_total` est `numeric(14,2)` non générée, défaut 0, et `quantity` est `numeric(14,3)` ;
+  - `orders.customer_id` et `customer_phone` sont facultatifs ;
+  - `document_counters` existe, avec RLS active et `SELECT` seul pour `authenticated` ;
+  - l'index `cash_register_sessions_one_open` est présent ;
+  - commandes, lignes et documents : toujours 0 ligne.
+- **Non vérifié** : le comportement réel de `record_sale`, `void_sale` et des rapports X et Z, la numérotation et l'impression.
 
 - **Prérequis** : `fix_store_audit_trigger_columns`, **appliquée le 16/10/2026** (version `20261016004129`, branche `fix/store-audit-trigger`). La migration vérifie ce prérequis et s'arrête s'il manque.
 - **`orders`** :
