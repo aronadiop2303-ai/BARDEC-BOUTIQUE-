@@ -57,13 +57,14 @@ Données de référence : 4 secteurs, 4 sous-secteurs, 4 spécialités (Commerce
 
 **Statut : préparée, NON TESTÉE (Docker indisponible), NON APPLIQUÉE.** Elle ne s'applique qu'avec l'autorisation écrite du propriétaire nommant `pos_sales_foundation`.
 
-- **Prérequis** : `fix_store_audit_trigger_columns`, branche `fix/store-audit-trigger`, également non appliquée.
-  - Sans ce correctif, toute écriture sur `orders`, `inventory_movements`, `payment_transactions`, `products` ou `stock_locations` échoue à cause du déclencheur d'audit.
-  - La migration vérifie ce prérequis et s'arrête s'il manque.
+- **Prérequis** : `fix_store_audit_trigger_columns`, **appliquée le 16/10/2026** (version `20261016004129`, branche `fix/store-audit-trigger`). La migration vérifie ce prérequis et s'arrête s'il manque.
 - **`orders`** :
   - `customer_id` et `customer_phone` deviennent facultatifs ;
   - nouvelles colonnes : `sales_channel` (`pos`, `online`, `quote`), `cashier_id`, `cash_session_id` (obligatoire si `pos`), `amount_tendered`, `change_given`, `payment_summary` et `discount_details` (remise tracée : montant, motif, auteur, rôle, limite).
-- **`order_items`** : `quantity` devient `numeric(14,3)`, de 0 exclu à 999 999. Ajouts : `unit_id`, `unit_label`, `line_discount`, `cost_price_snapshot` (toujours vide : aucun prix d'achat en base).
+- **`order_items`** :
+  - `line_total` était une colonne calculée (`quantity::numeric * unit_price`). Elle bloquait le changement de type (erreur 0A000, vérifié en lecture seule). Elle est supprimée puis recréée en colonne normale `numeric(14,2) not null default 0` (≥ 0), écrite par `record_sale` : brut moins remise de ligne. La migration s'arrête si la table n'est pas vide.
+  - `quantity` devient `numeric(14,3)`, de 0 exclu à 999 999.
+  - Ajouts : `unit_id`, `unit_label`, `line_discount`, `cost_price_snapshot` (toujours vide : aucun prix d'achat en base).
 - **`payment_transactions`** :
   - ajout de `payment_method` (`cash`, `wave`, `orange_money`, `card`, `credit`) ;
   - fournisseurs manuels ajoutés à la contrainte : `manual_cash`, `manual_wave`, `manual_orange_money`, `manual_card`, `store_credit`.
@@ -88,7 +89,18 @@ Données de référence : 4 secteurs, 4 sous-secteurs, 4 spécialités (Commerce
   - avoirs et factures numérotées : Q5 ;
   - crédit client avec solde et plafond : Q4 ;
   - coût et marge : Q2.
-  - La RLS existante permet encore à un membre (y compris publisher) d'insérer des `cash_register_movements` et à la personne qui a ouvert la caisse de modifier sa session directement. Resserrer ces règles est une décision à prendre.
+  - La RLS actuelle permet encore à un membre (publisher compris) d'insérer des `cash_register_movements` et à la personne qui a ouvert la caisse de modifier sa session directement. Le correctif est préparé séparément (section suivante).
+
+## Verrouillage de la caisse (migration `20261016011818_pos_cash_lockdown`)
+
+**Statut : préparée, NON TESTÉE, NON APPLIQUÉE.** Elle exige `pos_sales_foundation` et s'arrête sinon.
+
+- **Suppression** de `cash_movements_member_insert`, `cash_sessions_member_insert` et `cash_sessions_owner_or_opener_update`. Les politiques de lecture sont conservées et la RLS reste active.
+- **Retrait** de INSERT, UPDATE et DELETE sur `cash_register_movements` et `cash_register_sessions` à `anon` et `authenticated`.
+- **Nouvelle fonction** `public.open_cash_session(site, fond, nom, note)` : propriétaire, admin ou editor ; fond arrondi et positif ; une seule session ouverte par caisse.
+- **Écritures restantes**, toutes par fonctions : `record_sale`, `void_sale`, `close_cash_session`. Plus aucun mouvement manuel (dépense, apport, retrait) n'est possible tant qu'aucune fonction dédiée n'existe.
+- **Interface** : elle appelle `open_cash_session` et, tant que la fonction n'existe pas, revient à l'insertion directe encore permise.
+- **Test** `supabase/tests/pos_cash_lockdown.test.sql` : jamais exécuté.
 
 ## Points connus à traiter (non corrigés)
 

@@ -56,7 +56,9 @@ Décrits dans le cahier des charges (sections 3.6 à 3.14). Caisse : uniquement 
   - vente comptoir sans client, quantités numériques ;
   - numérotation `TICKET-AAAA-000001` sans trou ;
   - fonctions `record_sale`, `void_sale`, `cash_session_summary` (X) et `close_cash_session` (Z).
-  - Elle exige d'abord `fix_store_audit_trigger_columns` (branche `fix/store-audit-trigger`) et s'arrête si ce correctif manque.
+  - Elle exige `fix_store_audit_trigger_columns`, appliquée le 16/10/2026 (version `20261016004129`).
+  - `order_items.line_total` passe de colonne calculée à colonne normale (brut moins remise de ligne).
+- **Verrouillage de la caisse** `20261016011818_pos_cash_lockdown.sql` (préparé, non testé, non appliqué) : plus d'écriture directe ; ouverture par `open_cash_session`.
 - **Test SQL** `supabase/tests/pos_sales_foundation.test.sql` : jamais exécuté (Docker indisponible).
 - **Domaine** `src/domain/pos/` : calcul de ligne, totaux, remises par rôle, monnaie à rendre, numérotation, mentions légales. Tests Vitest OK.
 - **Écran** « Ventes et caisse » (`PosPage.tsx`) :
@@ -149,7 +151,7 @@ solde = Σ écritures ; plafond vérifié par la base
 |---|---|---|
 | **Q1** | Espace de gestion, configuration, catalogue, consultation du stock | **Code fait, tests automatiques OK, non testé en réel** |
 | Q2 | Stock complet + prix d'achat/coût | À faire (migration requise) |
-| Q3 | Caisse et ventes comptoir | **Code et tests Vitest faits ; migration préparée, non testée, non appliquée** (prérequis : correctif d'audit) |
+| Q3 | Caisse et ventes comptoir | **Code et tests Vitest faits ; migrations `pos_sales_foundation` et `pos_cash_lockdown` préparées, non testées, non appliquées** (correctif d'audit appliqué) |
 | Q4 | Clients, crédit, fournisseurs, achats | À faire (migration requise) |
 | Q5 | Devis, factures, bons de livraison, avoirs | À faire |
 | Q6 | Rapports, alertes, rôles fins, audit | À faire |
