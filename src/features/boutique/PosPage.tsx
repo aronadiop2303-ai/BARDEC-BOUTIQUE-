@@ -285,7 +285,7 @@ function SaleForm({ ctx, session, units, editorLimit, onSold, onPrint }: {
         })),
         payments: paymentInputs,
         customer,
-        discount: orderDiscount,
+        discount: orderDiscount ?? (totals.ok && totals.totals.lineDiscounts > 0 ? { reason: discount.reason.trim() } : null),
       })
       setLastSale({ number: result.document_number, snapshot: result.snapshot, change: Number(result.change_given) })
       setCart([])

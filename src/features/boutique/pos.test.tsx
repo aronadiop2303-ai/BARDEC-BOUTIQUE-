@@ -87,8 +87,18 @@ describe('écran Ventes et caisse', () => {
     expect(screen.queryByRole('button', { name: 'Encaisser' })).toBeNull()
   })
 
-  it('propose l’ouverture de caisse à un vendeur sans session ouverte', async () => {
-    const fake = setup('editor', [installed, { data: null }, units, settings, noSales, {}, { data: null }, units, settings, noSales])
+  it('ouvre la caisse par open_cash_session quand la fonction existe', async () => {
+    const fake = setup('editor', [installed, { data: null }, units, settings, noSales, { data: 'sess-9' }, installed, { data: null }, units, settings, noSales])
+    fireEvent.change(await screen.findByLabelText('Fond de caisse (FCFA)'), { target: { value: '5000' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Ouvrir la caisse' }))
+    await screen.findByText('Aucune vente aujourd’hui.')
+    const call = fake.queries.find((q) => q.table === 'rpc:open_cash_session')
+    expect(fake.op(call!, 'rpc')?.[0]).toEqual({ p_site_id: SITE, p_opening_cash: 5000, p_note: null })
+    expect(fake.queries.some((q) => q.table === 'cash_register_sessions' && q.ops.some(([n]) => n === 'insert'))).toBe(false)
+  })
+
+  it('ouvre la caisse par insertion directe tant que la fonction n’existe pas', async () => {
+    const fake = setup('editor', [installed, { data: null }, units, settings, noSales, { error: { code: 'PGRST202', message: 'not found' } }, {}, installed, { data: null }, units, settings, noSales])
     fireEvent.change(await screen.findByLabelText('Fond de caisse (FCFA)'), { target: { value: '15 000' } })
     fireEvent.click(screen.getByRole('button', { name: 'Ouvrir la caisse' }))
     expect(await screen.findByText('Aucune vente aujourd’hui.')).toBeTruthy()
@@ -120,6 +130,29 @@ describe('écran Ventes et caisse', () => {
     expect(args).toMatchObject({ p_site_id: SITE, p_cash_session_id: 'sess-1', p_payments: [{ method: 'cash', amount: 15000 }], p_discount: {} })
     expect(args.p_lines).toEqual([{ product_id: 'p-1', unit_id: 'unit-u', quantity: 2 }])
     expect(JSON.stringify(args)).not.toMatch(/price|total/)
+  })
+
+  it('transmet le motif quand seule une remise de ligne est appliquée', async () => {
+    const product = { id: 'p-1', name: 'Marteau', sku: null, barcode: null, price: 5000, currency_code: 'XOF', track_inventory: true }
+    const fake = setup('owner', [
+      installed, openSession, units, settings, noSales,
+      { data: [product] },
+      { data: [{ id: 'su-1', product_id: 'p-1', unit_id: 'unit-u', conversion_to_base: 1, is_default: true, min_sale_quantity: 1, quantity_step: 1 }] },
+      { data: [] },
+      { data: { order_id: 'order-2', document_id: 'doc-2', document_number: 'TICKET-2026-000002', grand_total: 4500, change_given: 0, snapshot: frozen } },
+      installed, openSession, units, settings, noSales,
+    ])
+    fireEvent.change(await screen.findByLabelText('Rechercher un produit ou scanner un code-barres'), { target: { value: 'Mart' } })
+    fireEvent.click(await screen.findByRole('button', { name: /Ajouter$/ }))
+    fireEvent.change(screen.getByLabelText('Remise sur Marteau'), { target: { value: '500' } })
+    fireEvent.change(screen.getByLabelText('Montant du paiement 1'), { target: { value: '4500' } })
+    expect(screen.getByText('Le motif de la remise est obligatoire.')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Motif de la remise'), { target: { value: 'Client fidèle' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Encaisser' }))
+    await screen.findByText(/Vente enregistrée : TICKET-2026-000002/)
+    const args = fake.op(fake.queries.find((q) => q.table === 'rpc:record_sale')!, 'rpc')?.[0] as Record<string, unknown>
+    expect(args.p_lines).toEqual([{ product_id: 'p-1', unit_id: 'unit-u', quantity: 1, discount: 500 }])
+    expect(args.p_discount).toEqual({ reason: 'Client fidèle' })
   })
 
   it('bloque l’encaissement si le paiement est insuffisant', async () => {

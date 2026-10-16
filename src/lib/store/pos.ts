@@ -10,7 +10,8 @@ import { sanitizeSearch } from './products'
 /**
  * Accès aux ventes en caisse. Toute écriture de vente passe par les fonctions SQL de la migration
  * pos_sales_foundation (record_sale, void_sale, close_cash_session) : les montants sont recalculés par la base.
- * Seule l'ouverture de caisse est une insertion directe, autorisée par la RLS de cash_register_sessions.
+ * Ouverture de caisse : fonction open_cash_session (migration pos_cash_lockdown) ; tant qu'elle n'existe pas,
+ * insertion directe, encore autorisée par la RLS actuelle de cash_register_sessions.
  */
 
 /** Codes renvoyés quand la fonction ou la table de la migration n'existe pas encore. */
@@ -58,6 +59,10 @@ export async function getOpenSession(client: SupabaseClient, siteId: string): Pr
 
 export async function openSession(client: SupabaseClient, siteId: string, userId: string, openingCash: number, note: string): Promise<void> {
   if (!Number.isInteger(openingCash) || openingCash < 0) throw new Error('Le fond de caisse doit être un montant entier positif ou nul.')
+  const viaFunction = await client.rpc('open_cash_session', { p_site_id: siteId, p_opening_cash: openingCash, p_note: note.trim() || null })
+  if (!viaFunction.error) return
+  if (viaFunction.error.code === '23505') throw new Error('Une caisse est déjà ouverte pour cette boutique.')
+  if (!['PGRST202', '42883'].includes(viaFunction.error.code ?? '')) throw rpcError(viaFunction.error)
   const { error } = await client.from('cash_register_sessions').insert({
     site_id: siteId, opened_by: userId, opening_cash: openingCash, opening_note: note.trim() || null,
   })
@@ -163,7 +168,8 @@ export type SaleRequest = {
   lines: SaleLineRequest[]
   payments: PaymentInput[]
   customer: { name?: string; phone?: string }
-  discount: OrderDiscount
+  /** Remise globale, ou seulement le motif quand il n'y a que des remises de ligne. */
+  discount: OrderDiscount | { reason: string }
 }
 
 export type SaleResult = {
