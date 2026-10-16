@@ -14,6 +14,10 @@ export type StorePermissions = {
   archiveProducts: boolean
   /** Saisir des mouvements de stock : impossible tant qu'aucune fonction SQL n'existe (Q2). */
   writeStock: boolean
+  /** Encaisser une vente (public.record_sale : propriétaire, admin, editor). */
+  sell: boolean
+  /** Annuler une vente (public.void_sale : propriétaire et admin). */
+  voidSales: boolean
 }
 
 export function permissionsFor(role: StoreRole): StorePermissions {
@@ -23,6 +27,8 @@ export function permissionsFor(role: StoreRole): StorePermissions {
     editCatalog: manager,
     archiveProducts: manager,
     writeStock: false,
+    sell: manager || role === 'editor',
+    voidSales: manager,
   }
 }
 

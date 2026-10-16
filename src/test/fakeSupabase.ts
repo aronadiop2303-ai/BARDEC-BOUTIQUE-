@@ -32,7 +32,13 @@ export function fakeSupabase(responses: FakeResult[]) {
     return proxy
   }
 
-  const client = { from: (table: string) => builder(table) } as unknown as SupabaseClient
+  // Appel de fonction : journalisé comme une requête sur « rpc:<nom> », avec les arguments dans l'opération « rpc ».
+  const rpc = (name: string, args: unknown) => {
+    const proxy = builder(`rpc:${name}`) as Record<string, unknown>
+    queries[queries.length - 1].ops.push(['rpc', [args]])
+    return proxy
+  }
+  const client = { from: (table: string) => builder(table), rpc } as unknown as SupabaseClient
   const op = (query: RecordedQuery, name: string) => query.ops.find(([n]) => n === name)?.[1]
   return { client, queries, op, remaining: () => queue.length }
 }
