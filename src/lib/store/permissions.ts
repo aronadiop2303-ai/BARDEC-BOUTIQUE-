@@ -37,18 +37,22 @@ export type StorePermissions = {
   publish: boolean
   /** Mouvements de caisse manuels (vendeur : petites dépenses seulement, plafond en base). */
   cashMovements: boolean
+  /** Fiches clients, ventes à crédit, versements, relevés. */
+  customers: boolean
+  /** Fixer le plafond de crédit, désactiver un client, autoriser un dépassement (avec motif). */
+  manageCredit: boolean
 }
 
 const NONE: StorePermissions = {
   configure: false, editCatalog: false, archiveProducts: false, writeStock: false, viewStock: false, accessPos: false,
   sell: false, voidSales: false, importProducts: false, viewCosts: false, manageTeam: false, deliveries: false,
-  previewStorefront: false, publish: false, cashMovements: false,
+  previewStorefront: false, publish: false, cashMovements: false, customers: false, manageCredit: false,
 }
 
 const MATRIX: Record<EffectiveRole, StorePermissions> = {
-  owner: { ...NONE, configure: true, editCatalog: true, archiveProducts: true, writeStock: true, viewStock: true, accessPos: true, sell: true, voidSales: true, importProducts: true, viewCosts: true, manageTeam: true, previewStorefront: true, publish: true, cashMovements: true },
-  manager: { ...NONE, configure: true, editCatalog: true, archiveProducts: true, writeStock: true, viewStock: true, accessPos: true, sell: true, voidSales: true, importProducts: true, viewCosts: true, manageTeam: true, previewStorefront: true, cashMovements: true },
-  cashier: { ...NONE, viewStock: true, accessPos: true, sell: true, cashMovements: true },
+  owner: { ...NONE, configure: true, editCatalog: true, archiveProducts: true, writeStock: true, viewStock: true, accessPos: true, sell: true, voidSales: true, importProducts: true, viewCosts: true, manageTeam: true, previewStorefront: true, publish: true, cashMovements: true, customers: true, manageCredit: true },
+  manager: { ...NONE, configure: true, editCatalog: true, archiveProducts: true, writeStock: true, viewStock: true, accessPos: true, sell: true, voidSales: true, importProducts: true, viewCosts: true, manageTeam: true, previewStorefront: true, cashMovements: true, customers: true, manageCredit: true },
+  cashier: { ...NONE, viewStock: true, accessPos: true, sell: true, cashMovements: true, customers: true },
   stock_keeper: { ...NONE, writeStock: true, viewStock: true },
   driver: { ...NONE, deliveries: true },
   viewer: { ...NONE, viewStock: true, accessPos: true },

@@ -80,7 +80,7 @@ describe('garde d’accès de l’espace de gestion', () => {
     // Un vendeur n'a ni Paramètres ni Équipe dans son menu.
     expect(screen.queryByRole('link', { name: 'Paramètres boutique' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Équipe' })).toBeNull()
-    const soon = screen.getByText('Clients et crédits').closest('[aria-disabled]')
+    const soon = screen.getByText('Fournisseurs et achats').closest('[aria-disabled]')
     expect(soon?.getAttribute('aria-disabled')).toBe('true')
     expect(screen.getByText('Vendeur / Comptoir')).toBeTruthy()
     // Matrice : un vendeur ne crée pas de produit.

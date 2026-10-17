@@ -15,6 +15,10 @@ import { listUnits } from '../../lib/store/units'
 import { useAsync, useDebounced } from '../../lib/useAsync'
 import type { BoutiqueContext } from './context'
 import CashMovementsPanel from './CashMovementsPanel'
+import CreditCustomerPicker from './CreditCustomerPicker'
+import { checkOverrideReason, creditDecision } from '../../domain/customers/credit'
+import { legacyToEffective } from '../../domain/team/roles'
+import { recordCreditSale, type Customer } from '../../lib/store/customers'
 import Receipt, { type ReceiptFormat } from './Receipt'
 import { breakdownRows, type Breakdown } from '../../domain/pos/cashMovements'
 
@@ -277,6 +281,8 @@ function SaleForm({ ctx, session, units, editorLimit, onSold }: {
   const [payments, setPayments] = useState<PaymentDraft[]>([{ key: nextKey++, method: 'cash', amount: '', reference: '' }])
   const [discount, setDiscount] = useState<{ type: 'amount' | 'percent'; value: string; reason: string }>({ type: 'amount', value: '', reason: '' })
   const [customer, setCustomer] = useState({ name: '', phone: '' })
+  const [creditCustomer, setCreditCustomer] = useState<{ customer: Customer; balance: number | null } | null>(null)
+  const [override, setOverride] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -308,28 +314,35 @@ function SaleForm({ ctx, session, units, editorLimit, onSold }: {
   const totals = computeTotals(validLines, orderDiscount)
   const discountError = totals.ok ? checkDiscount(totals.totals, limit, discount.reason) : totals.message
   const paymentInputs = payments.map((p) => ({ method: p.method, amount: parseMoney(p.amount) ?? NaN, reference: p.reference.trim() || undefined }))
-  const hasCustomer = !!customer.name.trim() || !!customer.phone.trim()
+  const hasCredit = paymentInputs.some((p) => p.method === 'credit')
+  const creditAmount = paymentInputs.filter((p) => p.method === 'credit').reduce((sum, p) => sum + (Number.isFinite(p.amount) ? p.amount : 0), 0)
+  const role = ctx.staffRole ?? legacyToEffective(ctx.access.role)
+  const decision = hasCredit && creditCustomer && creditCustomer.balance !== null
+    ? creditDecision(creditCustomer.balance, creditAmount, creditCustomer.customer.credit_limit, role) : null
+  const creditReady = !hasCredit || (decision !== null && decision.kind !== 'blocked' && (decision.kind !== 'override' || !checkOverrideReason(override)))
+  const hasCustomer = hasCredit ? !!creditCustomer : !!customer.name.trim() || !!customer.phone.trim()
   const paymentCheck = totals.ok ? checkPayments(totals.totals.grandTotal, paymentInputs, { hasCustomer }) : null
-  const ready = allValid && totals.ok && !discountError && paymentCheck?.ok === true
+  const ready = allValid && totals.ok && !discountError && paymentCheck?.ok === true && creditReady
 
   async function checkout() {
     if (!ready) return
     setError('')
     setBusy(true)
     try {
-      const result = await recordSale(ctx.client, {
-        siteId: ctx.siteId,
-        sessionId: session.id,
-        lines: cart.map((line) => ({
-          product_id: line.product.id,
-          unit_id: line.unitId,
-          quantity: parseQuantity(line.quantity),
-          ...(line.discount.trim() ? { discount: parseMoney(line.discount) ?? 0 } : {}),
-        })),
-        payments: paymentInputs,
-        customer,
-        discount: orderDiscount ?? (totals.ok && totals.totals.lineDiscounts > 0 ? { reason: discount.reason.trim() } : null),
-      })
+      const lines = cart.map((line) => ({
+        product_id: line.product.id,
+        unit_id: line.unitId,
+        quantity: parseQuantity(line.quantity),
+        ...(line.discount.trim() ? { discount: parseMoney(line.discount) ?? 0 } : {}),
+      }))
+      const saleDiscount = orderDiscount ?? (totals.ok && totals.totals.lineDiscounts > 0 ? { reason: discount.reason.trim() } : null)
+      // Crédit : la base contrôle la fiche client et le plafond, puis enregistre la vente (record_credit_sale).
+      const result = hasCredit && creditCustomer
+        ? await recordCreditSale(ctx.client, {
+          siteId: ctx.siteId, sessionId: session.id, customerId: creditCustomer.customer.id,
+          lines, payments: paymentInputs, discount: saleDiscount, overrideReason: decision?.kind === 'override' ? override : '',
+        })
+        : await recordSale(ctx.client, { siteId: ctx.siteId, sessionId: session.id, lines, payments: paymentInputs, customer, discount: saleDiscount })
       // Le formulaire est démonté au profit de l'écran de confirmation : « Nouvelle vente » repart d'un panier vide.
       onSold(result)
     } catch (reason) {
@@ -424,14 +437,20 @@ function SaleForm({ ctx, session, units, editorLimit, onSold }: {
         </div>
       )}
 
-      <div className="bq-row" aria-label="Client">
+      {hasCredit && (
+        <CreditCustomerPicker
+          ctx={ctx} customer={creditCustomer?.customer ?? null} balance={creditCustomer?.balance ?? null} decision={decision} override={override}
+          onSelect={(c, balance) => { setCreditCustomer(c ? { customer: c, balance } : null); setOverride('') }} onOverride={setOverride}
+        />
+      )}
+      {!hasCredit && <div className="bq-row" aria-label="Client">
         <label className="bq-inline-field bq-grow">Client (facultatif)
           <input maxLength={120} value={customer.name} onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
         </label>
         <label className="bq-inline-field">Téléphone
           <input maxLength={40} value={customer.phone} onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
         </label>
-      </div>
+      </div>}
 
       <div className="bq-stack" aria-label="Paiements">
         {payments.map((payment, index) => (

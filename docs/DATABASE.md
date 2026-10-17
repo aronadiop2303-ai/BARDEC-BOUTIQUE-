@@ -189,3 +189,27 @@ Domaines web et DNS, versions de sites publiés, extensions, intégrations, rés
 - `public.cash_movement_details` : justificatif, acteur, rôle (la table `cash_register_movements` n'est pas modifiée).
 - `public.cash_session_breakdown(session)` : ventilation par type pour les rapports X et Z.
 - `cash_session_summary` et `close_cash_session` **inchangées** : elles comptaient déjà ces quatre types dans l'attendu.
+
+## Clients et crédit (migrations `20261017220000_customers_credit` et `20261017220100_credit_sale_guard`)
+
+**PRÉPARÉES, NON APPLIQUÉES, NON TESTÉES EN EXÉCUTION.** Branche `feat/customers-credit`, test : `supabase/tests/customers_credit.test.sql`.
+
+- **Partie 1/2 (additive)** : `store_customers` (nom, téléphone, adresse, plafond), `customer_ledger` (ventes à crédit, versements), `save_customer`, `record_credit_sale` (contrôle fiche et plafond puis appelle `record_sale`), `record_customer_payment` (espèces : apport dans la caisse ouverte), `customer_statement` (solde progressif), `customer_receivables` (ancienneté FIFO). Lecture : propriétaire, gérant, vendeur. Dépassement du plafond : propriétaire ou gérant avec motif tracé.
+- **Partie 2/2 (autorisation écrite requise)** : `record_sale` refuse le paiement `credit` hors `record_credit_sale` (drapeau de transaction `app.credit_sale`). Diff :
+
+```diff
+--- a/public.record_sale
++++ b/public.record_sale
+@@ -312,4 +312,9 @@
+     raise exception 'Une vente à crédit exige le nom ou le téléphone du client.' using errcode = '22023';
+   end if;
++  -- Lot F : le crédit passe par record_credit_sale (fiche client, plafond, grand livre), qui active ce drapeau
++  -- pour sa seule transaction. Un appel direct avec un paiement « credit » est refusé.
++  if v_has_credit and coalesce(current_setting('app.credit_sale', true), '') <> 'on' then
++    raise exception 'Vente à crédit : choisissez une fiche client (record_credit_sale).' using errcode = '22023';
++  end if;
+ 
+   -- Commande et lignes.
+```
+
+- Pas de relance automatique (SMS, e-mail).
