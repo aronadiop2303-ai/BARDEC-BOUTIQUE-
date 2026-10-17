@@ -12,6 +12,7 @@ import PosPage from './PosPage'
 import ProductForm from './ProductForm'
 import ProductsPage from './ProductsPage'
 import PurchasesPage from './PurchasesPage'
+import ReportsPage from './ReportsPage'
 import PublicSitePage from './PublicSitePage'
 import SettingsPage from './SettingsPage'
 import StockPage from './StockPage'
@@ -28,6 +29,7 @@ const MENU: { section: BoutiqueSection; label: string; icon: typeof Package; all
   { section: 'ventes', label: 'Ventes et caisse', icon: Receipt, allowed: (can) => can.accessPos },
   { section: 'clients', label: 'Clients et crédit', icon: Users, allowed: (can) => can.customers },
   { section: 'achats', label: 'Fournisseurs et achats', icon: Truck, allowed: (can) => can.purchases || can.receivePurchases },
+  { section: 'rapports', label: 'Rapports et alertes', icon: BarChart3, allowed: (can) => can.reports || can.restockAlerts },
   { section: 'livraisons', label: 'Mes livraisons', icon: Truck, allowed: (can) => can.deliveries || can.manageTeam },
   { section: 'equipe', label: 'Équipe', icon: UsersRound, allowed: (can) => can.manageTeam },
   { section: 'site-public', label: 'Boutique en ligne', icon: Globe2, allowed: (can) => can.previewStorefront },
@@ -37,7 +39,6 @@ const MENU: { section: BoutiqueSection; label: string; icon: typeof Package; all
 /** Sections prévues, visibles mais inactives : aucun faux contenu. */
 const SOON: { label: string; milestone: string; icon: typeof Package }[] = [
   { label: 'Devis et documents', milestone: 'Q5', icon: FileText },
-  { label: 'Rapports', milestone: 'Q6', icon: BarChart3 },
   { label: 'Journal d’audit', milestone: 'Q6', icon: ClipboardList },
 ]
 
@@ -54,6 +55,7 @@ export default function BoutiqueLayout({ ctx, section, itemId }: { ctx: Boutique
   else if (section === 'familles') content = <FamiliesPage ctx={ctx} />
   else if (section === 'stock') content = <StockPage ctx={ctx} />
   else if (section === 'ventes') content = <PosPage ctx={ctx} />
+  else if (section === 'rapports') content = <ReportsPage ctx={ctx} />
   else if (section === 'achats') content = <PurchasesPage ctx={ctx} />
   else if (section === 'clients') content = <CustomersPage ctx={ctx} />
   else if (section === 'equipe') content = <TeamPage ctx={ctx} />

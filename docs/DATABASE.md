@@ -244,3 +244,12 @@ Domaines web et DNS, versions de sites publiés, extensions, intégrations, rés
 - Fonctions : `save_supplier`, `create_purchase_order`, `cancel_purchase_order` (propriétaire, gérant) ; `receivable_purchase_orders`, `receivable_purchase_lines`, `receive_purchase` (propriétaire, gérant, magasinier, **sans coût ni montant**) ; `record_supplier_payment` (espèces : `cash_out` de la caisse ouverte) et `supplier_balances` (propriétaire, gérant).
 - Réception : entrée de stock par `record_stock_movement` (`restock`), coût moyen pondéré dans `product_costs` (unité de base), dette fournisseur au coût du bon.
 - Un magasinier ne réceptionne qu'après `20261017160100_team_roles_enforcement` (contrôle de rôle de `record_stock_movement`).
+
+## Alertes et rapports (migration `20261018040000_alerts_reports`)
+
+**PRÉPARÉE, NON APPLIQUÉE, NON TESTÉE EN EXÉCUTION.** Branche `feat/alerts-reports`, test : `supabase/tests/alerts_reports.test.sql`. Migration **additive**.
+
+- **Seuils** : il n'existait aucun seuil en base. Ajout de `product_stock_thresholds` (minimum, quantité à recommander) ; `set_stock_threshold` et `restock_list` (propriétaire, gérant, magasinier ; aucun coût).
+- **Rapports** (propriétaire, gérant) : `sales_report` (jour, semaine ou mois à Dakar, net des retours), `top_products`, `sales_by_seller`.
+- **Marge** (propriétaire, gérant) : `margin_report` au **coût moyen actuel** (`cost_basis = current_average_cost`), car le coût à la vente n'est pas figé. Les produits sans prix d'achat sont exclus et comptés à part.
+- L'export CSV se fait côté interface, à partir des lignes renvoyées par la base (UTF-8, « ; », virgule décimale).

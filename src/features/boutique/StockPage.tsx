@@ -131,7 +131,7 @@ export default function StockPage({ ctx }: { ctx: BoutiqueContext }) {
                 </tbody>
               </table>
             </div>
-            <p className="bq-hint">Seuils minimum et alertes de rupture : pas encore de colonne de seuil en base.</p>
+            <p className="bq-hint">Seuils minimum et liste « à réapprovisionner » : section « Rapports et alertes » (migration alerts_reports).</p>
             <Pagination page={page} pageSize={PAGE_SIZE} total={products.total} onPage={setPage} />
             {historyFor && (
               <MovementHistory ctx={ctx} product={historyFor} locations={locations} units={data.data.units} onClose={() => setHistoryFor(null)} />
