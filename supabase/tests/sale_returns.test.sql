@@ -112,11 +112,15 @@ $test$;
 -- -----------------------------------------------------------------------------
 -- 4. Vendeur : au-dessus du plafond (3 000) refusé
 -- -----------------------------------------------------------------------------
+-- Le vendeur ne peut pas lire les lignes d'une vente du propriétaire (RLS voulue) : l'identifiant de la ligne
+-- est lu ICI, encore en tant que propriétaire, et conservé dans la table temporaire t.
+insert into t select 'item', to_jsonb(i.id) from public.order_items i
+where i.order_id = (select (payload ->> 'order_id')::uuid from t where name = 'sale');
 select set_config('request.jwt.claims', '{"sub":"b0100000-0000-4000-8000-000000000002","role":"authenticated"}', true);
 do $test$
 begin
   perform public.record_return('b2100000-0000-4000-8000-000000000000', (select (payload ->> 'order_id')::uuid from t where name = 'sale'),
-    jsonb_build_array(jsonb_build_object('order_item_id', (select id from public.order_items where order_id = (select (payload ->> 'order_id')::uuid from t where name = 'sale')),
+    jsonb_build_array(jsonb_build_object('order_item_id', (select (payload #>> '{}')::uuid from t where name = 'item'),
       'quantity', 1, 'disposition', 'restock')),
     'Vendeur', 'wave', null);
   raise exception 'ÉCHEC 4 : plafond du vendeur dépassé';
