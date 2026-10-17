@@ -5,14 +5,14 @@ import { useEffect, useState } from 'react'
  * Choix : aucune dépendance supplémentaire, et fonctionne sur tout hébergement statique
  * sans règle de réécriture côté serveur.
  */
-export type BoutiqueSection = 'tableau-de-bord' | 'produits' | 'familles' | 'stock' | 'ventes' | 'parametres'
+export type BoutiqueSection = 'tableau-de-bord' | 'produits' | 'familles' | 'stock' | 'ventes' | 'equipe' | 'livraisons' | 'parametres'
 
 export type Route =
   | { name: 'home' }
   | { name: 'boutique'; siteId: string; section: BoutiqueSection; itemId: string | null }
   | { name: 'site'; siteId: string }
 
-const SECTIONS: BoutiqueSection[] = ['tableau-de-bord', 'produits', 'familles', 'stock', 'ventes', 'parametres']
+const SECTIONS: BoutiqueSection[] = ['tableau-de-bord', 'produits', 'familles', 'stock', 'ventes', 'equipe', 'livraisons', 'parametres']
 
 export function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent)

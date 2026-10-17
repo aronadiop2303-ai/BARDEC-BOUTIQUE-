@@ -164,3 +164,11 @@ Domaines web et DNS, versions de sites publiés, extensions, intégrations, rés
 - **`public.product_costs`** : prix d'achat, table séparée de `products` (lisible par `anon` sur un site publié). Lecture propriétaire et admin, aucune écriture directe.
 - **`public.product_import_runs`** : journal (qui, quand, méthode, mode, lignes, créés, mis à jour, mouvements, résultat, erreurs). Lecture propriétaire et admin, aucune écriture directe.
 - L'écran `Produits › Importer` détecte l'absence de la migration et n'écrit rien tant qu'elle n'est pas appliquée.
+
+## Équipe et comptes (migrations `20261017160000_team_accounts` et `20261017160100_team_roles_enforcement`)
+
+**PRÉPARÉES, NON APPLIQUÉES, NON TESTÉES EN EXÉCUTION.** Branche `feat/team-accounts`, test : `supabase/tests/team_accounts.test.sql`. Edge Function `supabase/functions/invite-staff` : **non déployée**.
+
+- **Partie 1/2 (additive)** : `site_staff` (rôle métier par boutique : manager, cashier, stock_keeper, driver), `team_audit_events`, `private.staff_role(site)` (owner > ligne site_staff active > ancien rôle traduit ; désactivé = aucun droit), `current_staff_role`, `list_site_staff`, `set_staff_role`, `set_staff_active`, `staff_lookup_user_id` et `staff_register_invitation` (service_role seulement).
+- **Partie 2/2 (autorisation écrite requise)** : contrôles de rôle de `record_sale`, `void_sale`, `cash_session_summary`, `close_cash_session`, `open_cash_session`, `record_stock_movement`, `import_products` passés à `staff_role` ; politiques RESTRICTIVE. Audit et diff : `docs/TEAM-RLS-AUDIT.md`.
+- **Invitation sans SMTP** : lien d'invitation (`generateLink`) renvoyé au propriétaire/gérant, à transmettre en privé. Compte existant : aucun lien renvoyé. Avec SMTP dédié : `INVITE_SEND_EMAIL=true` (e-mail Supabase).

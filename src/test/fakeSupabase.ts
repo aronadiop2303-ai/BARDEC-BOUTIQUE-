@@ -38,7 +38,16 @@ export function fakeSupabase(responses: FakeResult[]) {
     queries[queries.length - 1].ops.push(['rpc', [args]])
     return proxy
   }
-  const client = { from: (table: string) => builder(table), rpc } as unknown as SupabaseClient
+  // Edge Function : journalisée comme « fn:<nom> », options dans l'opération « invoke » ; réponse prise dans la file.
+  const functions = {
+    invoke: async (name: string, options: unknown) => {
+      queries.push({ table: `fn:${name}`, ops: [['invoke', [options]]] })
+      const next = queue.shift()
+      if (!next) throw new Error(`Réponse manquante pour la fonction « ${name} »`)
+      return { data: next.data ?? null, error: next.error ?? null }
+    },
+  }
+  const client = { from: (table: string) => builder(table), rpc, functions } as unknown as SupabaseClient
   const op = (query: RecordedQuery, name: string) => query.ops.find(([n]) => n === name)?.[1]
   return { client, queries, op, remaining: () => queue.length }
 }

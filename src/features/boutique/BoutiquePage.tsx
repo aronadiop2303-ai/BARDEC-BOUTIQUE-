@@ -5,6 +5,8 @@ import { ErrorPanel, Loading } from '../../components/StatePanel'
 import { boutiquePath, type BoutiqueSection } from '../../lib/router'
 import { loadStoreAccess } from '../../lib/store/access'
 import { permissionsFor } from '../../lib/store/permissions'
+import { getStaffRole } from '../../lib/store/team'
+import { legacyToEffective } from '../../domain/team/roles'
 import { getSetupStatus } from '../../lib/store/setup'
 import { useAsync } from '../../lib/useAsync'
 import BoutiqueLayout from './BoutiqueLayout'
@@ -36,25 +38,32 @@ function Shell({ title, children }: { title: string; children: ReactNode }) {
  * L'interface masque ; la protection réelle reste la RLS de chaque table.
  */
 export default function BoutiquePage({ client, userId, siteId, section, itemId }: Props) {
-  const access = useAsync(() => loadStoreAccess(client, siteId, userId), [client, siteId, userId])
+  const access = useAsync(async () => {
+    const result = await loadStoreAccess(client, siteId, userId)
+    if (result.status !== 'ok') return { result, staffRole: null }
+    // Rôle métier lu par la base ; sans la migration team_accounts, traduction de l'ancien rôle de membre.
+    const staff = await getStaffRole(client, siteId)
+    return { result, staffRole: staff === 'not-installed' ? legacyToEffective(result.access.role) : staff }
+  }, [client, siteId, userId])
 
   if (access.status === 'loading') return <Shell title="Espace de gestion"><Loading label="Vérification de vos droits…" /></Shell>
   if (access.status === 'error') return <Shell title="Espace de gestion"><ErrorPanel message={access.message} onRetry={access.reload} /></Shell>
-  if (access.data.status === 'not-found') {
+  const { result, staffRole } = access.data
+  if (result.status === 'not-found') {
     return <Shell title="Site introuvable"><div className="empty-state" role="alert"><strong>Ce site n’existe pas ou vous n’y avez pas accès.</strong></div></Shell>
   }
-  if (access.data.status === 'forbidden') {
+  if (result.status === 'forbidden' || !staffRole) {
     return (
       <Shell title="Accès refusé">
         <div className="empty-state" role="alert">
-          <strong>Vous n’êtes ni propriétaire ni membre de l’espace de ce site.</strong>
-          <span>Demandez au propriétaire de vous inviter dans son espace.</span>
+          <strong>{result.status === 'forbidden' ? 'Vous n’êtes ni propriétaire ni membre de l’espace de ce site.' : 'Accès désactivé.'}</strong>
+          <span>{result.status === 'forbidden' ? 'Demandez au propriétaire de vous inviter dans son espace.' : 'Votre accès à cette boutique est désactivé. Contactez le propriétaire ou le gérant.'}</span>
         </div>
       </Shell>
     )
   }
 
-  const storeAccess = access.data.access
+  const storeAccess = result.access
   if (!storeAccess.isHardware) {
     return (
       <Shell title={storeAccess.site.name}>
@@ -67,7 +76,7 @@ export default function BoutiquePage({ client, userId, siteId, section, itemId }
     )
   }
 
-  const ctx: BoutiqueContext = { client, userId, siteId, access: storeAccess, can: permissionsFor(storeAccess.role) }
+  const ctx: BoutiqueContext = { client, userId, siteId, access: storeAccess, can: permissionsFor(staffRole), staffRole }
   return <ConfiguredBoutique ctx={ctx} section={section} itemId={itemId} />
 }
 

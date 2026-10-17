@@ -27,6 +27,9 @@ const configured: FakeResult[] = [
   { data: { id: 'doc' } },
   { data: [{ id: 'loc' }] },
 ]
+/** Rôle métier : migration team_accounts absente (repli sur l'ancien rôle) ou présente. */
+const staffNotInstalled: FakeResult = { error: { code: 'PGRST202', message: 'Could not find the function public.current_staff_role' } }
+const staffRole = (role: string): FakeResult => ({ data: role })
 const dashboard: FakeResult[] = [{ data: [], count: 3 }, { data: [], count: 1 }, { data: [] }, { data: [] }, { count: 0 }]
 
 function renderPage(responses: FakeResult[], userId = 'owner') {
@@ -47,6 +50,12 @@ describe('routeur', () => {
 })
 
 describe('garde d’accès de l’espace de gestion', () => {
+  it('refuse un membre dont l’accès est désactivé (rôle métier nul)', async () => {
+    renderPage([{ data: hardwareSite }, ownedBy('autre'), { data: { role: 'viewer' } }, quincaillerie, { data: null }], 'ancien')
+    expect(await screen.findByText('Accès désactivé.')).toBeTruthy()
+    expect(screen.queryByText('Tableau de bord')).toBeNull()
+  })
+
   it('refuse un utilisateur qui n’est pas membre de l’espace', async () => {
     renderPage([{ data: { ...hardwareSite, status: 'published' } }, { data: null }], 'intrus')
     expect(await screen.findByText('Vous n’êtes ni propriétaire ni membre de l’espace de ce site.')).toBeTruthy()
@@ -54,23 +63,26 @@ describe('garde d’accès de l’espace de gestion', () => {
   })
 
   it('garde un écran « Site » simple pour un site qui n’est pas une quincaillerie', async () => {
-    renderPage([{ data: { ...hardwareSite, category_id: null, name: 'École Excellence' } }, ownedBy('owner'), { data: [] }])
+    renderPage([{ data: { ...hardwareSite, category_id: null, name: 'École Excellence' } }, ownedBy('owner'), { data: [] }, staffNotInstalled])
     expect(await screen.findByText(/L’éditeur de site sera la prochaine fonctionnalité/)).toBeTruthy()
   })
 
   it('n’affiche pas l’assistant à un membre en lecture seule', async () => {
-    renderPage([{ data: hardwareSite }, ownedBy('autre'), { data: { role: 'viewer' } }, quincaillerie, ...notConfigured], 'lecteur')
+    renderPage([{ data: hardwareSite }, ownedBy('autre'), { data: { role: 'viewer' } }, quincaillerie, staffRole('viewer'), ...notConfigured], 'lecteur')
     expect(await screen.findByText('Cette boutique n’est pas encore configurée.')).toBeTruthy()
     expect(screen.queryByText('Votre boutique')).toBeNull()
   })
 
   it('affiche le menu, les sections « bientôt » inactives et le rôle', async () => {
-    renderPage([{ data: hardwareSite }, ownedBy('autre'), { data: { role: 'editor' } }, quincaillerie, ...configured, ...dashboard], 'vendeur')
+    renderPage([{ data: hardwareSite }, ownedBy('autre'), { data: { role: 'editor' } }, quincaillerie, staffNotInstalled, ...configured, ...dashboard], 'vendeur')
     expect(await screen.findByRole('heading', { name: 'Tableau de bord' })).toBeTruthy()
-    for (const label of ['Produits', 'Familles', 'Stock', 'Ventes et caisse', 'Paramètres boutique']) expect(screen.getByRole('link', { name: label })).toBeTruthy()
+    for (const label of ['Produits', 'Familles', 'Stock', 'Ventes et caisse']) expect(screen.getByRole('link', { name: label })).toBeTruthy()
+    // Un vendeur n'a ni Paramètres ni Équipe dans son menu.
+    expect(screen.queryByRole('link', { name: 'Paramètres boutique' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Équipe' })).toBeNull()
     const soon = screen.getByText('Clients et crédits').closest('[aria-disabled]')
     expect(soon?.getAttribute('aria-disabled')).toBe('true')
-    expect(screen.getByText(/Vendeur \(editor\)/)).toBeTruthy()
+    expect(screen.getByText('Vendeur / Comptoir')).toBeTruthy()
     // Matrice : un vendeur ne crée pas de produit.
     expect(screen.queryByRole('link', { name: /Nouveau produit/ })).toBeNull()
     await waitFor(() => expect(screen.getByText('Produits actifs')).toBeTruthy())
@@ -81,7 +93,7 @@ describe('garde d’accès de l’espace de gestion', () => {
 describe('assistant de configuration', () => {
   it('guide en 3 étapes puis écrit la configuration une seule fois', async () => {
     const fake = renderPage([
-      { data: hardwareSite }, ownedBy('owner'), quincaillerie, ...notConfigured,
+      { data: hardwareSite }, ownedBy('owner'), quincaillerie, staffRole('owner'), ...notConfigured,
       // runSetup : emplacements existants, profil, emplacements, familles, unités, module, réglages
       { data: [] }, {}, {}, {}, {}, {}, {},
       // rechargement : boutique configurée, puis tableau de bord
