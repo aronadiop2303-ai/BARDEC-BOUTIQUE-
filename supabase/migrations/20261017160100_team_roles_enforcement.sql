@@ -1033,7 +1033,7 @@ begin
       v_errors := v_errors || jsonb_build_object('line', v_line, 'message', 'SKU, code-barres ou catégorie trop long.');
     end if;
 
-    if jsonb_typeof(v_row -> 'price') <> 'number' or (v_row ->> 'price')::numeric < 0
+    if coalesce(jsonb_typeof(v_row -> 'price'), '') <> 'number' or (v_row ->> 'price')::numeric < 0
        or (v_row ->> 'price')::numeric <> trunc((v_row ->> 'price')::numeric) then
       v_errors := v_errors || jsonb_build_object('line', v_line, 'message', 'Prix de vente : entier positif ou nul obligatoire.');
     end if;
