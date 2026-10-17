@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
  * Choix : aucune dépendance supplémentaire, et fonctionne sur tout hébergement statique
  * sans règle de réécriture côté serveur.
  */
-export type BoutiqueSection = 'tableau-de-bord' | 'produits' | 'familles' | 'stock' | 'ventes' | 'clients' | 'equipe' | 'livraisons' | 'site-public' | 'parametres'
+export type BoutiqueSection = 'tableau-de-bord' | 'produits' | 'familles' | 'stock' | 'ventes' | 'clients' | 'achats' | 'equipe' | 'livraisons' | 'site-public' | 'parametres'
 
 export type Route =
   | { name: 'home' }
@@ -14,7 +14,7 @@ export type Route =
   /** Vitrine publique, sans connexion : #/vitrine/<siteId>[/famille/<id> | /produit/<slug>]. */
   | { name: 'storefront'; siteId: string; view: 'home' | 'category' | 'product'; param: string | null }
 
-const SECTIONS: BoutiqueSection[] = ['tableau-de-bord', 'produits', 'familles', 'stock', 'ventes', 'clients', 'equipe', 'livraisons', 'site-public', 'parametres']
+const SECTIONS: BoutiqueSection[] = ['tableau-de-bord', 'produits', 'familles', 'stock', 'ventes', 'clients', 'achats', 'equipe', 'livraisons', 'site-public', 'parametres']
 
 export function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent)

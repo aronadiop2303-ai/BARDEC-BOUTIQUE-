@@ -54,7 +54,7 @@ describe('permissions minimales par rôle', () => {
   })
 
   it('magasinier : stock sans caisse ni prix d’achat', () => {
-    expect(permissionsFor('stock_keeper')).toMatchObject({ viewStock: true, writeStock: true, accessPos: false, sell: false, viewCosts: false })
+    expect(permissionsFor('stock_keeper')).toMatchObject({ viewStock: true, writeStock: true, accessPos: false, sell: false, viewCosts: false, receivePurchases: true, purchases: false })
   })
 
   it('livreur : uniquement ses livraisons', () => {

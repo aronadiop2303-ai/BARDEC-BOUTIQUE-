@@ -235,3 +235,12 @@ Domaines web et DNS, versions de sites publiés, extensions, intégrations, rés
    end if;
    if char_length(v_reason) < 3 or char_length(v_reason) > 500 then
 ```
+
+## Fournisseurs et achats (migration `20261018020000_suppliers_purchases`)
+
+**PRÉPARÉE, NON APPLIQUÉE, NON TESTÉE EN EXÉCUTION.** Branche `feat/suppliers-purchases`, test : `supabase/tests/suppliers_purchases.test.sql`. Migration **additive**.
+
+- Tables : `suppliers`, `purchase_orders` (BC-AAAA-NNNNNN, compteur `purchase_order_counters`), `purchase_order_lines`, `purchase_receipts`, `purchase_receipt_lines`, `supplier_ledger`.
+- Fonctions : `save_supplier`, `create_purchase_order`, `cancel_purchase_order` (propriétaire, gérant) ; `receivable_purchase_orders`, `receivable_purchase_lines`, `receive_purchase` (propriétaire, gérant, magasinier, **sans coût ni montant**) ; `record_supplier_payment` (espèces : `cash_out` de la caisse ouverte) et `supplier_balances` (propriétaire, gérant).
+- Réception : entrée de stock par `record_stock_movement` (`restock`), coût moyen pondéré dans `product_costs` (unité de base), dette fournisseur au coût du bon.
+- Un magasinier ne réceptionne qu'après `20261017160100_team_roles_enforcement` (contrôle de rôle de `record_stock_movement`).
