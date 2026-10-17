@@ -154,3 +154,38 @@
   .print-root,.print-root *{visibility:visible}
   .print-root{display:block;position:absolute;left:0;top:0}
 }
+
+/* Boutique en ligne (vitrine publique) */
+.sf-page{max-width:1120px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:16px;color:#172944;background:#fff;min-height:100vh}
+.sf-header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #dfe5ee;padding-bottom:12px}
+.sf-brand{font:800 22px Manrope,sans-serif;color:#172944;text-decoration:none}
+.sf-layout{display:grid;grid-template-columns:220px 1fr;gap:20px}
+@media (max-width:720px){.sf-layout{grid-template-columns:1fr}.sf-categories{flex-direction:row;flex-wrap:wrap}}
+.sf-categories{display:flex;flex-direction:column;gap:6px}
+.sf-categories a{color:#172944;text-decoration:none;padding:6px 8px;border-radius:8px}
+.sf-categories a[aria-current=page]{background:#172944;color:#fff}
+.sf-main,.sf-stack{display:flex;flex-direction:column;gap:12px;min-width:0}
+.sf-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.sf-title{font:800 22px Manrope,sans-serif;margin:0}
+.sf-search{max-width:280px}
+.sf-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.sf-card{border:1px solid #dfe5ee;border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:6px}
+.sf-card a{color:inherit;text-decoration:none;display:flex;flex-direction:column;gap:6px}
+.sf-photo{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;background:#f3f6fa}
+.sf-photo-empty{display:flex;align-items:center;justify-content:center;color:#9aa6b8}
+.sf-price{font-weight:800}
+.sf-price-lg{font-size:22px}
+.sf-availability{font-size:12px;font-weight:700}
+.sf-in_stock,.sf-available{color:#1f7a45}
+.sf-out_of_stock{color:#9b1c1c}
+.sf-on_order{color:#8a5a00}
+.sf-product-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+@media (max-width:720px){.sf-product-body{grid-template-columns:1fr}}
+.sf-attributes{display:grid;gap:4px;margin:0}
+.sf-attributes div{display:flex;gap:8px}
+.sf-attributes dt{font-weight:700}
+.sf-attributes dd{margin:0}
+.sf-whatsapp{align-self:flex-start}
+.sf-muted{color:#6d7a8f}
+.sf-footer{border-top:1px solid #dfe5ee;padding-top:12px;display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.sf-footer span{display:inline-flex;align-items:center;gap:4px}

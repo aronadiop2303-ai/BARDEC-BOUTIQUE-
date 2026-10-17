@@ -172,3 +172,11 @@ Domaines web et DNS, versions de sites publiés, extensions, intégrations, rés
 - **Partie 1/2 (additive)** : `site_staff` (rôle métier par boutique : manager, cashier, stock_keeper, driver), `team_audit_events`, `private.staff_role(site)` (owner > ligne site_staff active > ancien rôle traduit ; désactivé = aucun droit), `current_staff_role`, `list_site_staff`, `set_staff_role`, `set_staff_active`, `staff_lookup_user_id` et `staff_register_invitation` (service_role seulement).
 - **Partie 2/2 (autorisation écrite requise)** : contrôles de rôle de `record_sale`, `void_sale`, `cash_session_summary`, `close_cash_session`, `open_cash_session`, `record_stock_movement`, `import_products` passés à `staff_role` ; politiques RESTRICTIVE. Audit et diff : `docs/TEAM-RLS-AUDIT.md`.
 - **Invitation sans SMTP** : lien d'invitation (`generateLink`) renvoyé au propriétaire/gérant, à transmettre en privé. Compte existant : aucun lien renvoyé. Avec SMTP dédié : `INVITE_SEND_EMAIL=true` (e-mail Supabase).
+
+## Boutique en ligne (migrations `20261017180000_public_storefront` et `20261017180100_storefront_anon_lockdown`)
+
+**PRÉPARÉES, NON APPLIQUÉES, NON TESTÉES EN EXÉCUTION.** Branche `feat/public-storefront`, test : `supabase/tests/public_storefront.test.sql`.
+
+- **Partie 1/2 (additive)** : fonctions `storefront_shop`, `storefront_categories`, `storefront_products`, `storefront_product` (SECURITY DEFINER, exécutables par anon) : données seulement si `sites.status = 'published'` (ou aperçu propriétaire/gérant connecté), produits `active` seulement, colonnes publiques seulement, disponibilité sans quantité. `set_storefront_published` : propriétaire seulement, confirmation par le nom exact, journal `storefront_publication_events`. `product_images` (URL https) et `set_product_image`.
+- **Partie 2/2 (autorisation écrite requise)** : `revoke select on public.products from anon` (la politique `products_public_read` expose aujourd'hui toutes les colonnes, dont `inventory_quantity`).
+- **Non traité** : `published_sites_anon_select` expose toutes les colonnes de `sites` (dont `settings`, `theme`).

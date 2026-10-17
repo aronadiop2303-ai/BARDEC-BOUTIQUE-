@@ -1,0 +1,24 @@
+-- =============================================================================
+-- Site public (lot D, partie 2/2) : fin de la lecture anonyme directe des produits — EXIGE UNE AUTORISATION ÉCRITE
+-- =============================================================================
+-- STATUT : PRÉPARÉE, NON APPLIQUÉE, NON TESTÉE EN EXÉCUTION.
+-- Nature : NON additive (changement de droits existants). Ne s'applique qu'avec l'autorisation écrite du propriétaire
+-- nommant 20261017180100_storefront_anon_lockdown.
+--
+-- PROBLÈME (docs/DATABASE.md, points connus) : la politique products_public_read laisse anon lire TOUTES les colonnes
+-- de products des sites publiés, dont inventory_quantity (stock exact) et tout champ interne ajouté plus tard.
+-- La vitrine (partie 1/2) n'en a pas besoin : elle lit uniquement par les fonctions storefront_*.
+--
+-- CORRECTIF : retrait du droit SELECT de anon sur public.products (seconde barrière : la politique reste en place,
+-- mais sans droit de table elle est sans effet pour anon). authenticated n'est pas concerné.
+--
+-- AVANT D'APPLIQUER (lecture seule) : vérifier qu'aucune autre fonctionnalité anonyme ne lit products directement :
+--   select policyname, roles, cmd, qual from pg_policies where tablename = 'products';
+--   -- et dans le code : recherche de from('products') hors espace de gestion connecté (aucune à ce jour).
+-- NON TRAITÉ ICI (décision séparée) : published_sites_anon_select expose toutes les colonnes de sites
+-- (settings, theme) ; un retrait équivalent sur sites casserait toute lecture anonyme des sites.
+--
+-- RETOUR ARRIÈRE : grant select on public.products to anon;
+-- =============================================================================
+
+revoke select on public.products from anon;

@@ -14,6 +14,7 @@ import {
 import { listUnits } from '../../lib/store/units'
 import { useAsync, useDebounced } from '../../lib/useAsync'
 import type { BoutiqueContext } from './context'
+import ProductPhoto from './ProductPhoto'
 
 const EMPTY_SERVICE = { warranty_duration_days: null, warranty_terms: null, return_window_days: null }
 
@@ -62,7 +63,13 @@ export default function ProductForm({ ctx, productId }: { ctx: BoutiqueContext; 
   if (!productId && !ctx.can.editCatalog) {
     return <div className="empty-state" role="alert"><strong>Votre rôle ne permet pas de créer un produit.</strong></div>
   }
-  return <ProductEditor key={data.data.product?.id ?? 'new'} ctx={ctx} product={data.data.product} units={data.data.units} families={data.data.families} onSaved={data.reload} />
+  const product = data.data.product
+  return (
+    <>
+      <ProductEditor key={product?.id ?? 'new'} ctx={ctx} product={product} units={data.data.units} families={data.data.families} onSaved={data.reload} />
+      {product && ctx.can.editCatalog && <ProductPhoto ctx={ctx} productId={product.id} />}
+    </>
+  )
 }
 
 function ProductEditor({ ctx, product, units, families, onSaved }: {

@@ -31,16 +31,21 @@ export type StorePermissions = {
   manageTeam: boolean
   /** Voir « Mes livraisons ». */
   deliveries: boolean
+  /** Voir l'aperçu de la boutique en ligne. */
+  previewStorefront: boolean
+  /** Publier ou dépublier la boutique en ligne : PROPRIÉTAIRE SEULEMENT (lot D). */
+  publish: boolean
 }
 
 const NONE: StorePermissions = {
   configure: false, editCatalog: false, archiveProducts: false, writeStock: false, viewStock: false, accessPos: false,
   sell: false, voidSales: false, importProducts: false, viewCosts: false, manageTeam: false, deliveries: false,
+  previewStorefront: false, publish: false,
 }
 
 const MATRIX: Record<EffectiveRole, StorePermissions> = {
-  owner: { ...NONE, configure: true, editCatalog: true, archiveProducts: true, writeStock: true, viewStock: true, accessPos: true, sell: true, voidSales: true, importProducts: true, viewCosts: true, manageTeam: true },
-  manager: { ...NONE, configure: true, editCatalog: true, archiveProducts: true, writeStock: true, viewStock: true, accessPos: true, sell: true, voidSales: true, importProducts: true, viewCosts: true, manageTeam: true },
+  owner: { ...NONE, configure: true, editCatalog: true, archiveProducts: true, writeStock: true, viewStock: true, accessPos: true, sell: true, voidSales: true, importProducts: true, viewCosts: true, manageTeam: true, previewStorefront: true, publish: true },
+  manager: { ...NONE, configure: true, editCatalog: true, archiveProducts: true, writeStock: true, viewStock: true, accessPos: true, sell: true, voidSales: true, importProducts: true, viewCosts: true, manageTeam: true, previewStorefront: true },
   cashier: { ...NONE, viewStock: true, accessPos: true, sell: true },
   stock_keeper: { ...NONE, writeStock: true, viewStock: true },
   driver: { ...NONE, deliveries: true },

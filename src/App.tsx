@@ -27,6 +27,7 @@ import type { SupabaseClient, User } from '@supabase/supabase-js'
 import AuthGate from './components/AuthGate'
 import CreateSiteWizard, { type CreateSitePayload } from './components/CreateSiteWizard'
 import BoutiquePage from './features/boutique/BoutiquePage'
+import StorefrontPage from './features/storefront/StorefrontPage'
 import { signOut } from './lib/auth'
 import { boutiquePath, navigate, useRoute } from './lib/router'
 import { HARDWARE_CATEGORY_SLUG } from './lib/store/access'
@@ -88,6 +89,13 @@ function SiteGlyph({ icon }: { icon: Site['icon'] }) {
 export default function App() {
   const session = useSession(supabase)
   const route = useRoute()
+  // Vitrine publique : aucune connexion exigée, lecture par les fonctions storefront_* uniquement.
+  if (route.name === 'storefront') {
+    if (!supabase) {
+      return <div className="empty-state" role="alert"><strong>Boutique indisponible.</strong><span>{supabaseInitError ?? 'Service non configuré.'}</span></div>
+    }
+    return <StorefrontPage key={route.siteId} client={supabase} siteId={route.siteId} view={route.view} param={route.param} />
+  }
   return (
     <AuthGate session={session} client={supabase} initError={supabaseInitError}>
       {(mode) => {

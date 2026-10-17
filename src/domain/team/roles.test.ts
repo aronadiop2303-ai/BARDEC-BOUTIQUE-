@@ -39,9 +39,12 @@ describe('attribution des rôles', () => {
 describe('permissions minimales par rôle', () => {
   it('gérant et propriétaire : tout, y compris équipe, annulation, import, prix d’achat', () => {
     for (const role of ['owner', 'manager'] as const) {
-      expect(Object.values(permissionsFor(role)).filter((v) => !v)).toEqual([false])
-      expect(permissionsFor(role)).toMatchObject({ manageTeam: true, voidSales: true, importProducts: true, viewCosts: true, deliveries: false })
+      expect(permissionsFor(role)).toMatchObject({ manageTeam: true, voidSales: true, importProducts: true, viewCosts: true, previewStorefront: true, deliveries: false })
     }
+    expect(Object.entries(permissionsFor('owner')).filter(([, v]) => !v).map(([k]) => k)).toEqual(['deliveries'])
+    // Lot D : publication réservée au propriétaire.
+    expect(permissionsFor('owner').publish).toBe(true)
+    expect(permissionsFor('manager').publish).toBe(false)
   })
 
   it('vendeur : caisse et encaissement ; ni annulation, ni prix d’achat, ni import, ni stock', () => {

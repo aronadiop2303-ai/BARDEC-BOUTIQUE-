@@ -1,4 +1,4 @@
-import { ArrowLeft, Boxes, ClipboardList, FileText, FolderTree, LayoutDashboard, Package, Receipt, Settings2, Truck, Users, UsersRound, BarChart3 } from 'lucide-react'
+import { ArrowLeft, Boxes, ClipboardList, FileText, FolderTree, LayoutDashboard, Package, Receipt, Settings2, Truck, Users, UsersRound, BarChart3, Globe2 } from 'lucide-react'
 import { legacyToEffective, STAFF_ROLE_LABELS } from '../../domain/team/roles'
 import type { StorePermissions } from '../../lib/store/permissions'
 import { boutiquePath, type BoutiqueSection } from '../../lib/router'
@@ -10,6 +10,7 @@ import ImportPage from './ImportPage'
 import PosPage from './PosPage'
 import ProductForm from './ProductForm'
 import ProductsPage from './ProductsPage'
+import PublicSitePage from './PublicSitePage'
 import SettingsPage from './SettingsPage'
 import StockPage from './StockPage'
 import TeamPage from './TeamPage'
@@ -25,6 +26,7 @@ const MENU: { section: BoutiqueSection; label: string; icon: typeof Package; all
   { section: 'ventes', label: 'Ventes et caisse', icon: Receipt, allowed: (can) => can.accessPos },
   { section: 'livraisons', label: 'Mes livraisons', icon: Truck, allowed: (can) => can.deliveries || can.manageTeam },
   { section: 'equipe', label: 'Équipe', icon: UsersRound, allowed: (can) => can.manageTeam },
+  { section: 'site-public', label: 'Boutique en ligne', icon: Globe2, allowed: (can) => can.previewStorefront },
   { section: 'parametres', label: 'Paramètres boutique', icon: Settings2, allowed: (can) => can.configure },
 ]
 
@@ -52,6 +54,7 @@ export default function BoutiqueLayout({ ctx, section, itemId }: { ctx: Boutique
   else if (section === 'ventes') content = <PosPage ctx={ctx} />
   else if (section === 'equipe') content = <TeamPage ctx={ctx} />
   else if (section === 'livraisons') content = <DeliveriesPage ctx={ctx} />
+  else if (section === 'site-public') content = <PublicSitePage ctx={ctx} />
   else if (section === 'parametres') content = <SettingsPage ctx={ctx} />
   else content = <Dashboard ctx={ctx} />
 
