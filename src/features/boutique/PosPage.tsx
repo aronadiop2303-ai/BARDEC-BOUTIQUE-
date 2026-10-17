@@ -20,6 +20,7 @@ import { checkOverrideReason, creditDecision } from '../../domain/customers/cred
 import { legacyToEffective } from '../../domain/team/roles'
 import { recordCreditSale, type Customer } from '../../lib/store/customers'
 import Receipt, { type ReceiptFormat } from './Receipt'
+import ReturnForm from './ReturnForm'
 import { breakdownRows, type Breakdown } from '../../domain/pos/cashMovements'
 
 export const MANUAL_PAYMENT_NOTICE = 'Wave / Orange Money : enregistrement manuel, aucun paiement réel n’est exécuté.'
@@ -91,7 +92,7 @@ export default function PosPage({ ctx }: { ctx: BoutiqueContext }) {
           onSold={(result) => { setLastSale(result); refreshHistory() }}
         />
       )}
-      <SalesHistory ctx={ctx} refreshKey={historyKey} onChanged={refreshHistory} onPrint={print} />
+      <SalesHistory ctx={ctx} session={session} cashierMaxReturn={settings.cashierMaxReturn} refreshKey={historyKey} onChanged={refreshHistory} onPrint={print} />
       {printJob && (
         <div className="print-root" aria-hidden="true">
           <Receipt snapshot={printJob.snapshot} format={printJob.format} voided={printJob.voided} />
@@ -496,8 +497,10 @@ function SaleForm({ ctx, session, units, editorLimit, onSold }: {
 // ── Historique des ventes ────────────────────────────────────────────────────
 
 /** Ventes de la période (jours à Dakar), recherche par numéro, réimpression depuis content_snapshot. */
-function SalesHistory({ ctx, refreshKey, onChanged, onPrint }: {
+function SalesHistory({ ctx, session, cashierMaxReturn, refreshKey, onChanged, onPrint }: {
   ctx: BoutiqueContext
+  session: CashSession | null
+  cashierMaxReturn: unknown
   refreshKey: number
   onChanged: () => void
   onPrint: (snapshot: ReceiptSnapshot, format: ReceiptFormat, voided?: boolean) => void
@@ -514,6 +517,7 @@ function SalesHistory({ ctx, refreshKey, onChanged, onPrint }: {
     [ctx.client, ctx.siteId, rangeKey, number, refreshKey],
   )
   const [voiding, setVoiding] = useState<string | null>(null)
+  const [returning, setReturning] = useState<SaleDocument | null>(null)
   const [reason, setReason] = useState('')
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
@@ -564,11 +568,14 @@ function SalesHistory({ ctx, refreshKey, onChanged, onPrint }: {
             <tbody>
               {sales.data.map((sale) => {
                 const voided = sale.status === 'void'
+                const creditNote = sale.document_type === 'credit_note'
+                // Une vente qui a un avoir dans la liste ne s'annule plus (la base le refuse après la partie 2/2 du lot G).
+                const hasReturn = !creditNote && sales.data.some((d) => d.document_type === 'credit_note' && d.order_id === sale.order_id)
                 return (
                   <tr key={sale.id}>
                     <td>{formatShopDateTime(sale.issued_at)}</td>
-                    <td>{sale.document_number}</td>
-                    <td className="num">{formatMoney(sale.total_amount, sale.snapshot?.totals.currency)}</td>
+                    <td>{sale.document_number}{creditNote && <span className="bq-badge"> AVOIR</span>}</td>
+                    <td className="num">{creditNote ? '−' : ''}{formatMoney(sale.total_amount, sale.snapshot?.totals.currency)}</td>
                     <td>{paymentModes(sale.snapshot)}</td>
                     <td>{sellerName(sale.snapshot)}</td>
                     <td>{voided ? <span className="bq-badge bq-badge-void" title={sale.void_reason ?? ''}>ANNULÉ</span> : <span className="bq-badge">Émis</span>}</td>
@@ -579,7 +586,10 @@ function SalesHistory({ ctx, refreshKey, onChanged, onPrint }: {
                           <button className="text-button" aria-label={`Réimprimer le reçu A4 ${sale.document_number}`} onClick={() => onPrint(sale.snapshot!, 'a4', voided)}>A4</button>
                         </>
                       ) : <small className="bq-muted">Instantané illisible</small>}
-                      {ctx.can.voidSales && !voided && voiding !== sale.id && (
+                      {ctx.can.returns && !creditNote && !voided && sale.order_id && (
+                        <button className="text-button" onClick={() => { setReturning(sale); setMessage(null) }}>Retour</button>
+                      )}
+                      {ctx.can.voidSales && !voided && !creditNote && !hasReturn && voiding !== sale.id && (
                         <button className="text-button" onClick={() => { setVoiding(sale.id); setReason('') }}>Annuler</button>
                       )}
                       {voiding === sale.id && (
@@ -597,6 +607,13 @@ function SalesHistory({ ctx, refreshKey, onChanged, onPrint }: {
           </table>
         </div>
       ))}
+      {returning && (
+        <ReturnForm
+          key={returning.id} ctx={ctx} sale={returning} session={session} cashierCap={cashierMaxReturn}
+          onCancel={() => setReturning(null)}
+          onDone={(snapshot, text) => { setReturning(null); setMessage({ kind: 'ok', text }); onPrint(snapshot, 'ticket'); onChanged() }}
+        />
+      )}
     </section>
   )
 }

@@ -18,7 +18,8 @@ export default function Receipt({ snapshot, format, voided = false }: { snapshot
   const mentions = legalMentions(settings.legal_details)
   const showCashier = settings.show_cashier_name !== false && !!snapshot.cashier?.name
   const showCustomer = settings.show_customer_details !== false && !!snapshot.customer && (!!snapshot.customer.name || !!snapshot.customer.phone)
-  const title = format === 'a4' ? 'Reçu de vente' : 'Ticket de caisse'
+  const isCreditNote = snapshot.document.type === 'credit_note'
+  const title = isCreditNote ? 'Avoir' : format === 'a4' ? 'Reçu de vente' : 'Ticket de caisse'
 
   return (
     <article className={format === 'a4' ? 'receipt receipt-a4' : 'receipt receipt-ticket'} aria-label={`${title} ${snapshot.document.number}`}>
@@ -37,6 +38,8 @@ export default function Receipt({ snapshot, format, voided = false }: { snapshot
         <div><dt>{title}</dt><dd>{snapshot.document.number}</dd></div>
         <div><dt>Date</dt><dd>{dateFormat.format(new Date(snapshot.document.issued_at))}</dd></div>
         {showCashier && <div><dt>Caissier</dt><dd>{snapshot.cashier.name}</dd></div>}
+        {isCreditNote && snapshot.document.original_number && <div><dt>Ticket d’origine</dt><dd>{snapshot.document.original_number}</dd></div>}
+        {isCreditNote && snapshot.return?.reason && <div><dt>Motif</dt><dd>{snapshot.return.reason}</dd></div>}
         {showCustomer && <div><dt>Client</dt><dd>{[snapshot.customer?.name, snapshot.customer?.phone].filter(Boolean).join(' · ')}</dd></div>}
       </dl>
 
@@ -51,6 +54,7 @@ export default function Receipt({ snapshot, format, voided = false }: { snapshot
                 <span className="receipt-item">{line.name}</span>
                 <small>{formatQuantity(line.quantity)} {line.unit_label ?? ''} × {money(line.unit_price)}</small>
                 {line.line_discount > 0 && <small>Remise : −{money(line.line_discount)}</small>}
+                {line.disposition && <small>{line.disposition === 'damage' ? 'Casse (non remis en stock)' : 'Remis en stock'}</small>}
               </td>
               <td className="num">{money(line.line_total)}</td>
             </tr>
@@ -61,7 +65,7 @@ export default function Receipt({ snapshot, format, voided = false }: { snapshot
       <dl className="receipt-totals">
         {totals.discount_total > 0 && <div><dt>Sous-total</dt><dd>{money(totals.subtotal)}</dd></div>}
         {totals.discount_total > 0 && <div><dt>Remise</dt><dd>−{money(totals.discount_total)}</dd></div>}
-        <div className="receipt-grand"><dt>TOTAL</dt><dd>{money(totals.grand_total)}</dd></div>
+        <div className="receipt-grand"><dt>{isCreditNote ? 'TOTAL REMBOURSÉ' : 'TOTAL'}</dt><dd>{money(totals.grand_total)}</dd></div>
       </dl>
 
       <dl className="receipt-payments" aria-label="Paiement">

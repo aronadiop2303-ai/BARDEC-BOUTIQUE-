@@ -5,7 +5,8 @@
  */
 export type ReceiptSnapshot = {
   version: number
-  document: { type: string; number: string; issued_at: string }
+  /** original_number : ticket d'origine d'un avoir (credit_note). */
+  document: { type: string; number: string; issued_at: string; original_number?: string | null }
   shop: { name: string; legal_name?: string | null; address?: string | null; city?: string | null; phone?: string | null; email?: string | null }
   settings: {
     paper?: 'thermal_58mm' | 'thermal_80mm' | 'a4'
@@ -24,11 +25,15 @@ export type ReceiptSnapshot = {
     unit_price: number
     line_discount: number
     line_total: number
+    /** Avoir : 'restock' (remis en stock) ou 'damage' (casse). */
+    disposition?: 'restock' | 'damage'
   }[]
   totals: { subtotal: number; discount_total: number; tax_total: number; grand_total: number; currency: string }
   discount?: { reason?: string | null } | null
   payments: { method: string; label: string; amount: number; reference?: string | null }[]
   cash: { tendered: number; change: number }
+  /** Avoir : motif du retour et ticket d'origine. */
+  return?: { reason?: string | null; original_number?: string | null } | null
 }
 
 /** Libellés des identifiants légaux connus ; une clé inconnue est affichée telle quelle. */

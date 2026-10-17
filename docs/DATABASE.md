@@ -213,3 +213,25 @@ Domaines web et DNS, versions de sites publiés, extensions, intégrations, rés
 ```
 
 - Pas de relance automatique (SMS, e-mail).
+
+## Retours partiels (migrations `20261018000000_sale_returns` et `20261018000100_void_after_return_guard`)
+
+**PRÉPARÉES, NON APPLIQUÉES, NON TESTÉES EN EXÉCUTION.** Branche `feat/sale-returns`, test : `supabase/tests/sale_returns.test.sql`.
+
+- **Partie 1/2 (additive)** : `sale_returns`, `sale_return_lines`, `returnable_lines(vente)`, `record_return(site, vente, lignes, motif, mode, session)`. Quantités limitées au vendu restant ; remboursement = part réellement payée (remise globale répartie) ; remise en stock (`return`) ou casse ; avoir `AVOIR-AAAA-NNNNNN` (store_documents `credit_note`, instantané figé) ; espèces : `refund_cash` dans la caisse ouverte. Vendeur : plafond `settings.pos.cashier_max_return_amount` (0 par défaut).
+- **Partie 2/2 (autorisation écrite requise)** : `void_sale` refuse une vente qui a déjà un retour. Diff :
+
+```diff
+--- a/public.void_sale
++++ b/public.void_sale
+@@ -34,4 +34,9 @@
+   if v_order.status = 'cancelled' then
+     raise exception 'Cette vente est déjà annulée.' using errcode = '22023';
++  end if;
++  -- Lot G : une vente qui a déjà un retour ne s'annule pas (double remboursement et double remise en stock).
++  if exists (select 1 from public.sale_returns r where r.order_id = v_order.id) then
++    raise exception 'Cette vente a déjà un retour (avoir) : annulation impossible, faites un retour des articles restants.'
++      using errcode = '22023';
+   end if;
+   if char_length(v_reason) < 3 or char_length(v_reason) > 500 then
+```

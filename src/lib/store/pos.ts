@@ -5,6 +5,7 @@ import type { PaymentInput } from '../../domain/pos/payments'
 import { isReceiptSnapshot, type ReceiptSnapshot } from '../../domain/pos/receipt'
 import type { OrderDiscount } from '../../domain/pos/sale'
 import type { Breakdown, ManualCashType } from '../../domain/pos/cashMovements'
+import type { Disposition, RefundMethod, ReturnableLine } from '../../domain/pos/returns'
 import { isUniqueViolation, toError, type DbError } from '../errors'
 import { sanitizeSearch } from './products'
 
@@ -154,13 +155,14 @@ export async function searchSaleProducts(client: SupabaseClient, siteId: string,
  * Réglages de caisse lus pour l'affichage (sites.settings.pos) : limite de remise et plafond de dépense du vendeur.
  * La base applique elle-même ces limites.
  */
-export async function getPosSettings(client: SupabaseClient, siteId: string): Promise<{ editorMaxDiscountPercent: unknown; cashierMaxExpense: unknown }> {
+export async function getPosSettings(client: SupabaseClient, siteId: string): Promise<{ editorMaxDiscountPercent: unknown; cashierMaxExpense: unknown; cashierMaxReturn: unknown }> {
   const { data, error } = await client.from('sites').select('settings').eq('id', siteId).maybeSingle()
   if (error) throw toError(error)
-  const settings = (data as { settings?: { pos?: { editor_max_discount_percent?: unknown; cashier_max_expense_amount?: unknown } } } | null)?.settings
+  const settings = (data as { settings?: { pos?: { editor_max_discount_percent?: unknown; cashier_max_expense_amount?: unknown; cashier_max_return_amount?: unknown } } } | null)?.settings
   return {
     editorMaxDiscountPercent: settings?.pos?.editor_max_discount_percent ?? 0,
     cashierMaxExpense: settings?.pos?.cashier_max_expense_amount ?? 0,
+    cashierMaxReturn: settings?.pos?.cashier_max_return_amount ?? 0,
   }
 }
 
@@ -221,6 +223,8 @@ export async function voidSale(client: SupabaseClient, orderId: string, reason: 
 
 export type SaleDocument = {
   id: string
+  /** 'receipt' (ticket de vente) ou 'credit_note' (avoir d'un retour). */
+  document_type: 'receipt' | 'credit_note'
   order_id: string | null
   document_number: string
   status: 'draft' | 'issued' | 'void'
@@ -240,11 +244,11 @@ export type SalesFilter = {
 
 export const SALES_HISTORY_LIMIT = 200
 
-/** Reçus de la période, du plus récent au plus ancien ; recherche facultative par numéro. */
+/** Tickets et avoirs de la période, du plus récent au plus ancien ; recherche facultative par numéro. */
 export async function listSales(client: SupabaseClient, siteId: string, filter: SalesFilter): Promise<SaleDocument[]> {
   let query = client.from('store_documents')
-    .select('id,order_id,document_number,status,total_amount,issued_at,void_reason,content_snapshot')
-    .eq('site_id', siteId).eq('document_type', 'receipt')
+    .select('id,document_type,order_id,document_number,status,total_amount,issued_at,void_reason,content_snapshot')
+    .eq('site_id', siteId).in('document_type', ['receipt', 'credit_note'])
     .gte('issued_at', filter.from).lt('issued_at', filter.to)
   const number = filter.number?.replace(/[^A-Z0-9-]/g, '')
   if (number) query = query.ilike('document_number', `%${number}%`)
@@ -317,4 +321,37 @@ export async function sessionBreakdown(client: SupabaseClient, sessionId: string
     throw rpcError(error)
   }
   return (data ?? {}) as Breakdown
+}
+
+// ── Retours (migration sale_returns) ────────────────────────────────────────
+
+export async function getReturnableLines(client: SupabaseClient, orderId: string): Promise<ReturnableLine[]> {
+  const { data, error } = await client.rpc('returnable_lines', { p_order_id: orderId })
+  if (error) throw rpcError(error)
+  return ((data ?? []) as ReturnableLine[]).map((l) => ({
+    ...l,
+    decimal_places: Number(l.decimal_places),
+    quantity_sold: Number(l.quantity_sold),
+    quantity_returned: Number(l.quantity_returned),
+    quantity_returnable: Number(l.quantity_returnable),
+    unit_refund: Number(l.unit_refund),
+  }))
+}
+
+export type ReturnResult = { return_id: string; document_number: string; refund_amount: number; refund_method: RefundMethod; snapshot: ReceiptSnapshot }
+
+export async function recordReturn(
+  client: SupabaseClient,
+  input: { siteId: string; orderId: string; lines: { order_item_id: string; quantity: number; disposition: Disposition }[]; reason: string; method: RefundMethod; sessionId: string | null },
+): Promise<ReturnResult> {
+  const { data, error } = await client.rpc('record_return', {
+    p_site_id: input.siteId,
+    p_order_id: input.orderId,
+    p_lines: input.lines,
+    p_reason: input.reason.trim(),
+    p_refund_method: input.method,
+    p_cash_session_id: input.sessionId,
+  })
+  if (error) throw rpcError(error)
+  return data as ReturnResult
 }
