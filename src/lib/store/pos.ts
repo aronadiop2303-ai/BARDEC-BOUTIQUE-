@@ -223,20 +223,29 @@ export type SaleDocument = {
   snapshot: ReceiptSnapshot | null
 }
 
-/** Reçus émis depuis `since` (début de journée par défaut), du plus récent au plus ancien. */
-export async function listSalesSince(client: SupabaseClient, siteId: string, since: Date): Promise<SaleDocument[]> {
-  const { data, error } = await client.from('store_documents')
+export type SalesFilter = {
+  /** Début inclus et fin exclue, instants ISO (voir domain/pos/history.dayRange). */
+  from: string
+  to: string
+  /** Numéro ou partie de numéro, déjà normalisé (lettres, chiffres, tirets). */
+  number?: string
+}
+
+export const SALES_HISTORY_LIMIT = 200
+
+/** Reçus de la période, du plus récent au plus ancien ; recherche facultative par numéro. */
+export async function listSales(client: SupabaseClient, siteId: string, filter: SalesFilter): Promise<SaleDocument[]> {
+  let query = client.from('store_documents')
     .select('id,order_id,document_number,status,total_amount,issued_at,void_reason,content_snapshot')
-    .eq('site_id', siteId).eq('document_type', 'receipt').gte('issued_at', since.toISOString())
-    .order('issued_at', { ascending: false }).limit(200)
+    .eq('site_id', siteId).eq('document_type', 'receipt')
+    .gte('issued_at', filter.from).lt('issued_at', filter.to)
+  const number = filter.number?.replace(/[^A-Z0-9-]/g, '')
+  if (number) query = query.ilike('document_number', `%${number}%`)
+  const { data, error } = await query.order('issued_at', { ascending: false }).limit(SALES_HISTORY_LIMIT)
   if (error) throw toError(error)
   return ((data ?? []) as (Omit<SaleDocument, 'snapshot'> & { content_snapshot: unknown })[]).map(({ content_snapshot, ...row }) => ({
     ...row,
     total_amount: Number(row.total_amount),
     snapshot: isReceiptSnapshot(content_snapshot) ? content_snapshot : null,
   }))
-}
-
-export function startOfToday(now = new Date()): Date {
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate())
 }

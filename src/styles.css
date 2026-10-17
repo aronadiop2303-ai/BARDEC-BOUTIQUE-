@@ -114,6 +114,10 @@
 .bq-sale-totals dd{margin:0;font:800 22px Manrope;color:#172944}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
+.bq-confirm{border:2px solid #1f9d55}
+.bq-confirm-number{font:800 26px Manrope;letter-spacing:.5px;color:#172944;margin:0}
+.bq-badge-void{background:#fde2e2;color:#9b1c1c;font-weight:700}
+
 /* Reçus : ticket 80 mm (zone imprimable 72 mm, police à chasse fixe) et A4 */
 .print-root{display:none}
 .receipt{color:#000;background:#fff}

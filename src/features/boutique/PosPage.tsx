@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Printer, Search, Trash2, X } from 'lucide-react'
+import { CheckCircle2, Plus, Printer, Search, Trash2, X } from 'lucide-react'
 import { Empty, ErrorPanel, Loading } from '../../components/StatePanel'
 import { formatMoney, parseMoney } from '../../domain/hardware/money'
 import { formatQuantity, type Unit } from '../../domain/hardware/units'
 import { checkPayments, PAYMENT_LABELS, PAYMENT_METHODS, type PaymentMethod } from '../../domain/pos/payments'
+import { dayRange, formatShopDateTime, normalizeNumberSearch, paymentModes, sellerName, shopToday } from '../../domain/pos/history'
 import type { ReceiptSnapshot } from '../../domain/pos/receipt'
 import { checkDiscount, computeSaleLine, computeTotals, maxDiscountPercent, type OrderDiscount, type SaleLine } from '../../domain/pos/sale'
 import {
-  closeSession, getOpenSession, getPosSettings, isPosInstalled, listSalesSince, openSession, recordSale, searchSaleProducts,
-  sessionSummary, startOfToday, voidSale, type CashSession, type SaleDocument, type SaleProduct, type SessionSummary,
+  closeSession, getOpenSession, getPosSettings, isPosInstalled, listSales, openSession, recordSale, SALES_HISTORY_LIMIT, searchSaleProducts,
+  sessionSummary, voidSale, type CashSession, type SaleDocument, type SaleProduct, type SaleResult, type SessionSummary,
 } from '../../lib/store/pos'
 import { listUnits } from '../../lib/store/units'
 import { useAsync, useDebounced } from '../../lib/useAsync'
@@ -19,20 +20,21 @@ export const MANUAL_PAYMENT_NOTICE = 'Wave / Orange Money : enregistrement manue
 
 type PrintJob = { snapshot: ReceiptSnapshot; format: ReceiptFormat; voided: boolean }
 
-/** Ventes et caisse : session, panier, encaissement par public.record_sale, historique du jour. */
+/** Ventes et caisse : session, panier, encaissement par public.record_sale, confirmation, historique des ventes. */
 export default function PosPage({ ctx }: { ctx: BoutiqueContext }) {
   const data = useAsync(async () => {
     const installed = await isPosInstalled(ctx.client)
     if (!installed) return { installed: false as const }
-    const [session, units, settings, sales] = await Promise.all([
+    const [session, units, settings] = await Promise.all([
       getOpenSession(ctx.client, ctx.siteId),
       listUnits(ctx.client, ctx.siteId),
       getPosSettings(ctx.client, ctx.siteId),
-      listSalesSince(ctx.client, ctx.siteId, startOfToday()),
     ])
-    return { installed: true as const, session, units, settings, sales }
+    return { installed: true as const, session, units, settings }
   }, [ctx.client, ctx.siteId])
   const [printJob, setPrintJob] = useState<PrintJob | null>(null)
+  const [lastSale, setLastSale] = useState<SaleResult | null>(null)
+  const [historyKey, setHistoryKey] = useState(0)
 
   useEffect(() => {
     if (!printJob) return
@@ -64,8 +66,9 @@ export default function PosPage({ ctx }: { ctx: BoutiqueContext }) {
     )
   }
 
-  const { session, units, settings, sales } = data.data
+  const { session, units, settings } = data.data
   const print = (snapshot: ReceiptSnapshot, format: ReceiptFormat, voided = false) => setPrintJob({ snapshot, format, voided })
+  const refreshHistory = () => setHistoryKey((n) => n + 1)
 
   return (
     <div className="bq-stack">
@@ -74,10 +77,14 @@ export default function PosPage({ ctx }: { ctx: BoutiqueContext }) {
       {!ctx.can.sell && <p className="notice" role="status">Consultation seule : seuls le propriétaire, un administrateur ou un vendeur encaissent.</p>}
       {ctx.can.sell && !session && <OpenSessionForm ctx={ctx} onOpened={data.reload} />}
       {session && <SessionBar ctx={ctx} session={session} onClosed={data.reload} />}
-      {ctx.can.sell && session && (
-        <SaleForm ctx={ctx} session={session} units={units} editorLimit={settings.editorMaxDiscountPercent} onSold={data.reload} onPrint={print} />
+      {lastSale && <SaleConfirmation sale={lastSale} onPrint={print} onNewSale={() => setLastSale(null)} />}
+      {ctx.can.sell && session && !lastSale && (
+        <SaleForm
+          ctx={ctx} session={session} units={units} editorLimit={settings.editorMaxDiscountPercent}
+          onSold={(result) => { setLastSale(result); refreshHistory() }}
+        />
       )}
-      <SalesHistory ctx={ctx} sales={sales} onChanged={data.reload} onPrint={print} />
+      <SalesHistory ctx={ctx} refreshKey={historyKey} onChanged={refreshHistory} onPrint={print} />
       {printJob && (
         <div className="print-root" aria-hidden="true">
           <Receipt snapshot={printJob.snapshot} format={printJob.format} voided={printJob.voided} />
@@ -206,6 +213,32 @@ function SummaryView({ summary, onDone }: { summary: SessionSummary; onDone?: ()
   )
 }
 
+// ── Confirmation de vente ────────────────────────────────────────────────────
+
+/** Écran affiché après une vente réussie ; l'impression lit l'instantané renvoyé par record_sale. */
+function SaleConfirmation({ sale, onPrint, onNewSale }: {
+  sale: SaleResult
+  onPrint: (snapshot: ReceiptSnapshot, format: ReceiptFormat) => void
+  onNewSale: () => void
+}) {
+  const currency = sale.snapshot?.totals?.currency
+  return (
+    <section className="bq-card bq-stack bq-confirm" aria-label="Vente enregistrée">
+      <h2 className="bq-subtitle" role="status"><CheckCircle2 size={20} /> Vente enregistrée</h2>
+      <p className="bq-confirm-number">{sale.document_number}</p>
+      <dl className="bq-sale-totals">
+        <div><dt>Total</dt><dd>{formatMoney(Number(sale.grand_total), currency)}</dd></div>
+        <div><dt>Monnaie à rendre</dt><dd>{formatMoney(Number(sale.change_given), currency)}</dd></div>
+      </dl>
+      <div className="modal-actions">
+        <button className="secondary-button" disabled={!sale.snapshot} onClick={() => onPrint(sale.snapshot, 'ticket')}><Printer size={15} /> Imprimer le ticket (80 mm)</button>
+        <button className="secondary-button" disabled={!sale.snapshot} onClick={() => onPrint(sale.snapshot, 'a4')}><Printer size={15} /> Imprimer le reçu (A4)</button>
+        <button className="primary-button" onClick={onNewSale}>Nouvelle vente</button>
+      </div>
+    </section>
+  )
+}
+
 // ── Panier et encaissement ───────────────────────────────────────────────────
 
 type CartLine = { key: number; product: SaleProduct; unitId: string; quantity: string; discount: string }
@@ -218,13 +251,12 @@ const parseQuantity = (text: string) => {
 
 let nextKey = 1
 
-function SaleForm({ ctx, session, units, editorLimit, onSold, onPrint }: {
+function SaleForm({ ctx, session, units, editorLimit, onSold }: {
   ctx: BoutiqueContext
   session: CashSession
   units: Unit[]
   editorLimit: unknown
-  onSold: () => void
-  onPrint: (snapshot: ReceiptSnapshot, format: ReceiptFormat) => void
+  onSold: (result: SaleResult) => void
 }) {
   const [search, setSearch] = useState('')
   const debounced = useDebounced(search, 250)
@@ -235,7 +267,6 @@ function SaleForm({ ctx, session, units, editorLimit, onSold, onPrint }: {
   const [customer, setCustomer] = useState({ name: '', phone: '' })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [lastSale, setLastSale] = useState<{ number: string; snapshot: ReceiptSnapshot; change: number } | null>(null)
 
   const unitById = useMemo(() => new Map(units.map((u) => [u.id, u])), [units])
   const limit = maxDiscountPercent(ctx.access.role, editorLimit)
@@ -287,15 +318,10 @@ function SaleForm({ ctx, session, units, editorLimit, onSold, onPrint }: {
         customer,
         discount: orderDiscount ?? (totals.ok && totals.totals.lineDiscounts > 0 ? { reason: discount.reason.trim() } : null),
       })
-      setLastSale({ number: result.document_number, snapshot: result.snapshot, change: Number(result.change_given) })
-      setCart([])
-      setPayments([{ key: nextKey++, method: 'cash', amount: '', reference: '' }])
-      setDiscount({ type: 'amount', value: '', reason: '' })
-      setCustomer({ name: '', phone: '' })
-      onSold()
+      // Le formulaire est démonté au profit de l'écran de confirmation : « Nouvelle vente » repart d'un panier vide.
+      onSold(result)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Encaissement impossible.')
-    } finally {
       setBusy(false)
     }
   }
@@ -306,14 +332,6 @@ function SaleForm({ ctx, session, units, editorLimit, onSold, onPrint }: {
   return (
     <section className="bq-card bq-stack" aria-label="Nouvelle vente">
       <h2 className="bq-subtitle">Nouvelle vente</h2>
-      {lastSale && (
-        <div className="notice bq-row" role="status">
-          <span className="bq-grow">Vente enregistrée : {lastSale.number}. Monnaie à rendre : {formatMoney(lastSale.change)}.</span>
-          <button className="secondary-button" onClick={() => onPrint(lastSale.snapshot, 'ticket')}><Printer size={15} /> Ticket 80 mm</button>
-          <button className="secondary-button" onClick={() => onPrint(lastSale.snapshot, 'a4')}><Printer size={15} /> Reçu A4</button>
-        </div>
-      )}
-
       <label className="search-box bq-search">
         <Search size={17} />
         <input
@@ -444,14 +462,26 @@ function SaleForm({ ctx, session, units, editorLimit, onSold, onPrint }: {
   )
 }
 
-// ── Historique du jour ───────────────────────────────────────────────────────
+// ── Historique des ventes ────────────────────────────────────────────────────
 
-function SalesHistory({ ctx, sales, onChanged, onPrint }: {
+/** Ventes de la période (jours à Dakar), recherche par numéro, réimpression depuis content_snapshot. */
+function SalesHistory({ ctx, refreshKey, onChanged, onPrint }: {
   ctx: BoutiqueContext
-  sales: SaleDocument[]
+  refreshKey: number
   onChanged: () => void
   onPrint: (snapshot: ReceiptSnapshot, format: ReceiptFormat, voided?: boolean) => void
 }) {
+  const today = shopToday()
+  const [fromDay, setFromDay] = useState(today)
+  const [toDay, setToDay] = useState(today)
+  const [search, setSearch] = useState('')
+  const number = normalizeNumberSearch(useDebounced(search, 300))
+  const range = dayRange(fromDay, toDay)
+  const rangeKey = range.ok ? `${range.from}|${range.to}` : ''
+  const sales = useAsync(
+    () => (range.ok ? listSales(ctx.client, ctx.siteId, { from: range.from, to: range.to, number }) : Promise.resolve([] as SaleDocument[])),
+    [ctx.client, ctx.siteId, rangeKey, number, refreshKey],
+  )
   const [voiding, setVoiding] = useState<string | null>(null)
   const [reason, setReason] = useState('')
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
@@ -476,44 +506,66 @@ function SalesHistory({ ctx, sales, onChanged, onPrint }: {
   }
 
   return (
-    <section className="bq-card bq-stack" aria-label="Ventes du jour">
-      <h2 className="bq-subtitle">Ventes du jour</h2>
+    <section className="bq-card bq-stack" aria-label="Historique des ventes">
+      <h2 className="bq-subtitle">Historique des ventes</h2>
+      <div className="bq-row" aria-label="Filtres de l’historique">
+        <label className="bq-inline-field">Du
+          <input type="date" value={fromDay} max={today} onChange={(e) => setFromDay(e.target.value)} />
+        </label>
+        <label className="bq-inline-field">Au
+          <input type="date" value={toDay} max={today} onChange={(e) => setToDay(e.target.value)} />
+        </label>
+        <label className="bq-inline-field bq-grow">Numéro
+          <input aria-label="Rechercher un numéro de ticket" value={search} maxLength={30} placeholder="TICKET-2026-000042 ou 42" onChange={(e) => setSearch(e.target.value)} />
+        </label>
+      </div>
+      {!range.ok && <p className="bq-error" role="alert">{range.message}</p>}
       {message && <p role={message.kind === 'ok' ? 'status' : 'alert'} className={message.kind === 'ok' ? 'notice' : 'bq-error'}>{message.text}</p>}
-      {sales.length === 0 ? <Empty title="Aucune vente aujourd’hui." /> : (
+      {sales.status === 'loading' && <Loading />}
+      {sales.status === 'error' && <ErrorPanel message={sales.message} onRetry={sales.reload} />}
+      {sales.status === 'ready' && range.ok && (sales.data.length === 0 ? <Empty title="Aucune vente sur cette période." /> : (
         <div className="bq-table-wrap">
-          <table className="bq-table">
-            <thead><tr><th scope="col">Numéro</th><th scope="col">Heure</th><th scope="col" className="num">Total</th><th scope="col">État</th><th scope="col">Actions</th></tr></thead>
+          {sales.data.length >= SALES_HISTORY_LIMIT && <p className="bq-hint">Seules les {SALES_HISTORY_LIMIT} ventes les plus récentes sont affichées : réduisez la période.</p>}
+          <table className="bq-table" aria-label="Ventes">
+            <thead>
+              <tr><th scope="col">Date</th><th scope="col">Numéro</th><th scope="col" className="num">Total</th><th scope="col">Paiement</th><th scope="col">Vendeur</th><th scope="col">Statut</th><th scope="col">Actions</th></tr>
+            </thead>
             <tbody>
-              {sales.map((sale) => (
-                <tr key={sale.id}>
-                  <td>{sale.document_number}</td>
-                  <td>{new Date(sale.issued_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
-                  <td className="num">{formatMoney(sale.total_amount)}</td>
-                  <td>{sale.status === 'void' ? <span className="bq-badge" title={sale.void_reason ?? ''}>Annulée</span> : <span className="bq-badge">Émise</span>}</td>
-                  <td>
-                    {sale.snapshot && (
-                      <>
-                        <button className="text-button" onClick={() => onPrint(sale.snapshot!, 'ticket', sale.status === 'void')}>Réimprimer</button>
-                        <button className="text-button" onClick={() => onPrint(sale.snapshot!, 'a4', sale.status === 'void')}>A4</button>
-                      </>
-                    )}
-                    {ctx.can.voidSales && sale.status !== 'void' && voiding !== sale.id && (
-                      <button className="text-button" onClick={() => { setVoiding(sale.id); setReason('') }}>Annuler</button>
-                    )}
-                    {voiding === sale.id && (
-                      <div className="bq-row">
-                        <input className="name-input bq-grow" aria-label={`Motif d’annulation de ${sale.document_number}`} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Motif obligatoire" />
-                        <button className="primary-button" disabled={busy || reason.trim().length < 3} onClick={() => confirmVoid(sale)}>Confirmer l’annulation</button>
-                        <button className="secondary-button" onClick={() => setVoiding(null)}>Retour</button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {sales.data.map((sale) => {
+                const voided = sale.status === 'void'
+                return (
+                  <tr key={sale.id}>
+                    <td>{formatShopDateTime(sale.issued_at)}</td>
+                    <td>{sale.document_number}</td>
+                    <td className="num">{formatMoney(sale.total_amount, sale.snapshot?.totals.currency)}</td>
+                    <td>{paymentModes(sale.snapshot)}</td>
+                    <td>{sellerName(sale.snapshot)}</td>
+                    <td>{voided ? <span className="bq-badge bq-badge-void" title={sale.void_reason ?? ''}>ANNULÉ</span> : <span className="bq-badge">Émis</span>}</td>
+                    <td>
+                      {sale.snapshot ? (
+                        <>
+                          <button className="text-button" aria-label={`Réimprimer le ticket ${sale.document_number}`} onClick={() => onPrint(sale.snapshot!, 'ticket', voided)}>Réimprimer</button>
+                          <button className="text-button" aria-label={`Réimprimer le reçu A4 ${sale.document_number}`} onClick={() => onPrint(sale.snapshot!, 'a4', voided)}>A4</button>
+                        </>
+                      ) : <small className="bq-muted">Instantané illisible</small>}
+                      {ctx.can.voidSales && !voided && voiding !== sale.id && (
+                        <button className="text-button" onClick={() => { setVoiding(sale.id); setReason('') }}>Annuler</button>
+                      )}
+                      {voiding === sale.id && (
+                        <div className="bq-row">
+                          <input className="name-input bq-grow" aria-label={`Motif d’annulation de ${sale.document_number}`} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Motif obligatoire" />
+                          <button className="primary-button" disabled={busy || reason.trim().length < 3} onClick={() => confirmVoid(sale)}>Confirmer l’annulation</button>
+                          <button className="secondary-button" onClick={() => setVoiding(null)}>Retour</button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
-      )}
+      ))}
     </section>
   )
 }

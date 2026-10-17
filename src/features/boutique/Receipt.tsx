@@ -9,6 +9,7 @@ const dateFormat = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeSt
 /**
  * Reçu imprimable, rendu UNIQUEMENT à partir de l'instantané figé (content_snapshot).
  * Aucun montant n'est recalculé : les valeurs sont seulement mises en forme.
+ * Aucune taxe n'est calculée ni affichée, aucune conformité fiscale n'est revendiquée.
  */
 export default function Receipt({ snapshot, format, voided = false }: { snapshot: ReceiptSnapshot; format: ReceiptFormat; voided?: boolean }) {
   const { shop, settings, totals, cash } = snapshot
@@ -60,11 +61,10 @@ export default function Receipt({ snapshot, format, voided = false }: { snapshot
       <dl className="receipt-totals">
         {totals.discount_total > 0 && <div><dt>Sous-total</dt><dd>{money(totals.subtotal)}</dd></div>}
         {totals.discount_total > 0 && <div><dt>Remise</dt><dd>−{money(totals.discount_total)}</dd></div>}
-        {totals.tax_total > 0 && <div><dt>TVA</dt><dd>{money(totals.tax_total)}</dd></div>}
         <div className="receipt-grand"><dt>TOTAL</dt><dd>{money(totals.grand_total)}</dd></div>
       </dl>
 
-      <dl className="receipt-payments">
+      <dl className="receipt-payments" aria-label="Paiement">
         {snapshot.payments.map((payment, index) => (
           <div key={index}>
             <dt>{payment.label}{payment.reference ? ` (${payment.reference})` : ''}</dt>
