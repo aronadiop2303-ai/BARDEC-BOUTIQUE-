@@ -35,18 +35,20 @@ export type StorePermissions = {
   previewStorefront: boolean
   /** Publier ou dépublier la boutique en ligne : PROPRIÉTAIRE SEULEMENT (lot D). */
   publish: boolean
+  /** Mouvements de caisse manuels (vendeur : petites dépenses seulement, plafond en base). */
+  cashMovements: boolean
 }
 
 const NONE: StorePermissions = {
   configure: false, editCatalog: false, archiveProducts: false, writeStock: false, viewStock: false, accessPos: false,
   sell: false, voidSales: false, importProducts: false, viewCosts: false, manageTeam: false, deliveries: false,
-  previewStorefront: false, publish: false,
+  previewStorefront: false, publish: false, cashMovements: false,
 }
 
 const MATRIX: Record<EffectiveRole, StorePermissions> = {
-  owner: { ...NONE, configure: true, editCatalog: true, archiveProducts: true, writeStock: true, viewStock: true, accessPos: true, sell: true, voidSales: true, importProducts: true, viewCosts: true, manageTeam: true, previewStorefront: true, publish: true },
-  manager: { ...NONE, configure: true, editCatalog: true, archiveProducts: true, writeStock: true, viewStock: true, accessPos: true, sell: true, voidSales: true, importProducts: true, viewCosts: true, manageTeam: true, previewStorefront: true },
-  cashier: { ...NONE, viewStock: true, accessPos: true, sell: true },
+  owner: { ...NONE, configure: true, editCatalog: true, archiveProducts: true, writeStock: true, viewStock: true, accessPos: true, sell: true, voidSales: true, importProducts: true, viewCosts: true, manageTeam: true, previewStorefront: true, publish: true, cashMovements: true },
+  manager: { ...NONE, configure: true, editCatalog: true, archiveProducts: true, writeStock: true, viewStock: true, accessPos: true, sell: true, voidSales: true, importProducts: true, viewCosts: true, manageTeam: true, previewStorefront: true, cashMovements: true },
+  cashier: { ...NONE, viewStock: true, accessPos: true, sell: true, cashMovements: true },
   stock_keeper: { ...NONE, writeStock: true, viewStock: true },
   driver: { ...NONE, deliveries: true },
   viewer: { ...NONE, viewStock: true, accessPos: true },

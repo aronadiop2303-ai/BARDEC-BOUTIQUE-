@@ -180,3 +180,12 @@ Domaines web et DNS, versions de sites publiés, extensions, intégrations, rés
 - **Partie 1/2 (additive)** : fonctions `storefront_shop`, `storefront_categories`, `storefront_products`, `storefront_product` (SECURITY DEFINER, exécutables par anon) : données seulement si `sites.status = 'published'` (ou aperçu propriétaire/gérant connecté), produits `active` seulement, colonnes publiques seulement, disponibilité sans quantité. `set_storefront_published` : propriétaire seulement, confirmation par le nom exact, journal `storefront_publication_events`. `product_images` (URL https) et `set_product_image`.
 - **Partie 2/2 (autorisation écrite requise)** : `revoke select on public.products from anon` (la politique `products_public_read` expose aujourd'hui toutes les colonnes, dont `inventory_quantity`).
 - **Non traité** : `published_sites_anon_select` expose toutes les colonnes de `sites` (dont `settings`, `theme`).
+
+## Mouvements de caisse manuels (migration `20261017200000_cash_movements`)
+
+**PRÉPARÉE, NON APPLIQUÉE, NON TESTÉE EN EXÉCUTION.** Branche `feat/cash-movements`, test : `supabase/tests/cash_movements.test.sql`. Migration **additive**.
+
+- `public.record_cash_movement(site, session, type, montant, motif, justificatif)` : dépense, apport (`cash_in`), retrait (`cash_out`), dépôt banque (`deposit`). Propriétaire et gérant : tous ; vendeur : dépenses ≤ `settings.pos.cashier_max_expense_amount` (0 par défaut). Session ouverte, montant > 0, motif obligatoire, sortie refusée si l'attendu deviendrait négatif.
+- `public.cash_movement_details` : justificatif, acteur, rôle (la table `cash_register_movements` n'est pas modifiée).
+- `public.cash_session_breakdown(session)` : ventilation par type pour les rapports X et Z.
+- `cash_session_summary` et `close_cash_session` **inchangées** : elles comptaient déjà ces quatre types dans l'attendu.

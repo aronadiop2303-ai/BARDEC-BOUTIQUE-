@@ -9,12 +9,14 @@ import type { ReceiptSnapshot } from '../../domain/pos/receipt'
 import { checkDiscount, computeSaleLine, computeTotals, maxDiscountPercent, type OrderDiscount, type SaleLine } from '../../domain/pos/sale'
 import {
   closeSession, getOpenSession, getPosSettings, isPosInstalled, listSales, openSession, recordSale, SALES_HISTORY_LIMIT, searchSaleProducts,
-  sessionSummary, voidSale, type CashSession, type SaleDocument, type SaleProduct, type SaleResult, type SessionSummary,
+  sessionBreakdown, sessionSummary, voidSale, type CashSession, type SaleDocument, type SaleProduct, type SaleResult, type SessionSummary,
 } from '../../lib/store/pos'
 import { listUnits } from '../../lib/store/units'
 import { useAsync, useDebounced } from '../../lib/useAsync'
 import type { BoutiqueContext } from './context'
+import CashMovementsPanel from './CashMovementsPanel'
 import Receipt, { type ReceiptFormat } from './Receipt'
+import { breakdownRows, type Breakdown } from '../../domain/pos/cashMovements'
 
 export const MANUAL_PAYMENT_NOTICE = 'Wave / Orange Money : enregistrement manuel, aucun paiement réel n’est exécuté.'
 
@@ -77,6 +79,7 @@ export default function PosPage({ ctx }: { ctx: BoutiqueContext }) {
       {!ctx.can.sell && <p className="notice" role="status">Consultation seule : seuls le propriétaire, un administrateur ou un vendeur encaissent.</p>}
       {ctx.can.sell && !session && <OpenSessionForm ctx={ctx} onOpened={data.reload} />}
       {session && <SessionBar ctx={ctx} session={session} onClosed={data.reload} />}
+      {session && ctx.can.cashMovements && <CashMovementsPanel ctx={ctx} session={session} cashierCap={settings.cashierMaxExpense} />}
       {lastSale && <SaleConfirmation sale={lastSale} onPrint={print} onNewSale={() => setLastSale(null)} />}
       {ctx.can.sell && session && !lastSale && (
         <SaleForm
@@ -136,6 +139,7 @@ function OpenSessionForm({ ctx, onOpened }: { ctx: BoutiqueContext; onOpened: ()
 
 function SessionBar({ ctx, session, onClosed }: { ctx: BoutiqueContext; session: CashSession; onClosed: () => void }) {
   const [summary, setSummary] = useState<SessionSummary | null>(null)
+  const [breakdown, setBreakdown] = useState<Breakdown | null>(null)
   const [closing, setClosing] = useState(false)
   const [counted, setCounted] = useState('')
   const [note, setNote] = useState('')
@@ -147,7 +151,9 @@ function SessionBar({ ctx, session, onClosed }: { ctx: BoutiqueContext; session:
     setError('')
     setBusy(true)
     try {
-      setSummary(await action())
+      const result = await action()
+      setSummary(result)
+      setBreakdown(await sessionBreakdown(ctx.client, result.session_id ?? session.id))
       after?.()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Action impossible.')
@@ -184,12 +190,12 @@ function SessionBar({ ctx, session, onClosed }: { ctx: BoutiqueContext; session:
           <button className="secondary-button" onClick={() => setClosing(false)}>Annuler</button>
         </div>
       )}
-      {summary && <SummaryView summary={summary} onDone={summary.status !== 'open' ? onClosed : undefined} />}
+      {summary && <SummaryView summary={summary} breakdown={breakdown} onDone={summary.status !== 'open' ? onClosed : undefined} />}
     </section>
   )
 }
 
-function SummaryView({ summary, onDone }: { summary: SessionSummary; onDone?: () => void }) {
+function SummaryView({ summary, breakdown, onDone }: { summary: SessionSummary; breakdown: Breakdown | null; onDone?: () => void }) {
   const money = (value: number | null) => (value === null ? '—' : formatMoney(Number(value), summary.currency))
   return (
     <div className="bq-stack" aria-label={summary.status === 'open' ? 'Rapport X' : 'Rapport Z'}>
@@ -202,6 +208,12 @@ function SummaryView({ summary, onDone }: { summary: SessionSummary; onDone?: ()
           ))}
           <tr><th scope="row">Fond de caisse</th><td className="num">{money(summary.opening_cash)}</td></tr>
           <tr><th scope="row">Entrées / sorties d’espèces</th><td className="num">+{money(summary.cash_in)} / −{money(summary.cash_out)}</td></tr>
+          {breakdown && breakdownRows(breakdown).map((row) => (
+            <tr key={row.type} className="bq-sub-row">
+              <th scope="row">— {row.label} ({row.count})</th>
+              <td className="num">{row.direction === -1 ? '−' : row.direction === 1 ? '+' : ''}{money(row.amount)}</td>
+            </tr>
+          ))}
           <tr><th scope="row">Espèces attendues</th><td className="num"><strong>{money(summary.expected_cash)}</strong></td></tr>
           {summary.counted_cash !== null && <tr><th scope="row">Espèces comptées</th><td className="num">{money(summary.counted_cash)}</td></tr>}
           {summary.discrepancy !== null && <tr><th scope="row">Écart</th><td className="num"><strong>{money(summary.discrepancy)}</strong></td></tr>}

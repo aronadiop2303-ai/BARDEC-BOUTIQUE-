@@ -4,6 +4,7 @@ import type { SellUnit } from '../../domain/hardware/units'
 import type { PaymentInput } from '../../domain/pos/payments'
 import { isReceiptSnapshot, type ReceiptSnapshot } from '../../domain/pos/receipt'
 import type { OrderDiscount } from '../../domain/pos/sale'
+import type { Breakdown, ManualCashType } from '../../domain/pos/cashMovements'
 import { isUniqueViolation, toError, type DbError } from '../errors'
 import { sanitizeSearch } from './products'
 
@@ -149,12 +150,18 @@ export async function searchSaleProducts(client: SupabaseClient, siteId: string,
   return products.sort((a, b) => Number(b.barcode === term) - Number(a.barcode === term))
 }
 
-/** Limite de remise d'un vendeur (sites.settings.pos.editor_max_discount_percent), lue pour l'affichage. */
-export async function getPosSettings(client: SupabaseClient, siteId: string): Promise<{ editorMaxDiscountPercent: unknown }> {
+/**
+ * Réglages de caisse lus pour l'affichage (sites.settings.pos) : limite de remise et plafond de dépense du vendeur.
+ * La base applique elle-même ces limites.
+ */
+export async function getPosSettings(client: SupabaseClient, siteId: string): Promise<{ editorMaxDiscountPercent: unknown; cashierMaxExpense: unknown }> {
   const { data, error } = await client.from('sites').select('settings').eq('id', siteId).maybeSingle()
   if (error) throw toError(error)
-  const settings = (data as { settings?: { pos?: { editor_max_discount_percent?: unknown } } } | null)?.settings
-  return { editorMaxDiscountPercent: settings?.pos?.editor_max_discount_percent ?? 0 }
+  const settings = (data as { settings?: { pos?: { editor_max_discount_percent?: unknown; cashier_max_expense_amount?: unknown } } } | null)?.settings
+  return {
+    editorMaxDiscountPercent: settings?.pos?.editor_max_discount_percent ?? 0,
+    cashierMaxExpense: settings?.pos?.cashier_max_expense_amount ?? 0,
+  }
 }
 
 // ── Vente ────────────────────────────────────────────────────────────────────
@@ -248,4 +255,66 @@ export async function listSales(client: SupabaseClient, siteId: string, filter: 
     total_amount: Number(row.total_amount),
     snapshot: isReceiptSnapshot(content_snapshot) ? content_snapshot : null,
   }))
+}
+
+// ── Mouvements de caisse manuels (migration cash_movements) ─────────────────
+
+export type CashMovement = {
+  id: string
+  movement_type: string
+  amount: number
+  reason: string | null
+  created_at: string
+  actor_user_id: string | null
+  receipt_ref: string | null
+}
+
+export async function recordCashMovement(
+  client: SupabaseClient,
+  input: { siteId: string; sessionId: string; type: ManualCashType; amount: number; reason: string; receiptRef: string },
+): Promise<{ movement_id: string; expected_cash: number }> {
+  const { data, error } = await client.rpc('record_cash_movement', {
+    p_site_id: input.siteId,
+    p_session_id: input.sessionId,
+    p_movement_type: input.type,
+    p_amount: input.amount,
+    p_reason: input.reason.trim(),
+    p_receipt_ref: input.receiptRef.trim() || null,
+  })
+  if (error) throw rpcError(error)
+  return data as { movement_id: string; expected_cash: number }
+}
+
+/** Mouvements de la session, du plus récent au plus ancien, avec la référence du justificatif s'il y en a une. */
+export async function listSessionMovements(client: SupabaseClient, sessionId: string): Promise<CashMovement[]> {
+  const { data, error } = await client.from('cash_register_movements')
+    .select('id,movement_type,amount,reason,created_at,actor_user_id,cash_movement_details(receipt_ref)')
+    .eq('session_id', sessionId).order('created_at', { ascending: false }).limit(200)
+  if (error) {
+    if (error.code && NOT_INSTALLED.has(error.code)) throw new PosNotInstalledError()
+    // Relation absente (migration cash_movements non appliquée) : relecture sans les détails.
+    if (error.code === 'PGRST200') {
+      const plain = await client.from('cash_register_movements').select('id,movement_type,amount,reason,created_at,actor_user_id')
+        .eq('session_id', sessionId).order('created_at', { ascending: false }).limit(200)
+      if (plain.error) throw toError(plain.error)
+      return ((plain.data ?? []) as Omit<CashMovement, 'receipt_ref'>[]).map((m) => ({ ...m, amount: Number(m.amount), receipt_ref: null }))
+    }
+    throw toError(error)
+  }
+  type Row = Omit<CashMovement, 'receipt_ref'> & { cash_movement_details: { receipt_ref: string | null } | { receipt_ref: string | null }[] | null }
+  return ((data ?? []) as Row[]).map(({ cash_movement_details: details, ...m }) => ({
+    ...m,
+    amount: Number(m.amount),
+    receipt_ref: (Array.isArray(details) ? details[0]?.receipt_ref : details?.receipt_ref) ?? null,
+  }))
+}
+
+/** Totaux par type calculés par la base ; null si la fonction n'existe pas encore. */
+export async function sessionBreakdown(client: SupabaseClient, sessionId: string): Promise<Breakdown | null> {
+  const { data, error } = await client.rpc('cash_session_breakdown', { p_session_id: sessionId })
+  if (error) {
+    if (error.code && NOT_INSTALLED.has(error.code)) return null
+    throw rpcError(error)
+  }
+  return (data ?? {}) as Breakdown
 }
