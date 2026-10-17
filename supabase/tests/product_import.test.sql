@@ -7,7 +7,7 @@
 --   psql -v ON_ERROR_STOP=1 -f supabase/tests/product_import.test.sql
 -- Transaction terminée par ROLLBACK : aucune donnée ne reste.
 --
--- Scénarios : import par le propriétaire (catégorie créée, unité, prix d'achat, stock initial via
+-- Scénarios : prix absent refusé avec message explicite ; import par le propriétaire (catégorie créée, unité, prix d'achat, stock initial via
 -- record_stock_movement) ; editor et viewer refusés ; plus de 1000 lignes refusé ; doublon de SKU = rien
 -- n'est écrit + journal 'failed' ; échec à l'écriture (contrôle de record_stock_movement) = tout annulé ;
 -- mise à jour par SKU ; prix d'achat illisible pour editor et anon ; isolation entre deux boutiques.
@@ -93,6 +93,23 @@ begin
     raise exception 'ÉCHEC 2b : une ligne a été écrite malgré l''erreur';
   end if;
   raise notice 'OK 2 : doublon refusé, tout ou rien';
+end;
+$test$;
+
+-- 2b. Clé « price » absente : erreur explicite, rien n'est écrit.
+insert into test_results select 'import2b', public.import_products('12000000-0000-4000-8000-000000000000',
+  '[{"line":2,"name":"Sans prix","sku":"NOPRICE-1","unit_id":"14000000-0000-4000-8000-000000000001"}]', 'create', 'csv');
+do $test$
+declare
+  v jsonb := (select payload from test_results where name = 'import2b');
+begin
+  if v ->> 'status' <> 'failed' then raise exception 'ÉCHEC 2c : import sans prix accepté'; end if;
+  if not exists (select 1 from jsonb_array_elements(v -> 'errors') e
+                 where e ->> 'message' = 'Prix de vente : entier positif ou nul obligatoire.' and (e ->> 'line')::int = 2) then
+    raise exception 'ÉCHEC 2d : message attendu absent : %', v -> 'errors';
+  end if;
+  if exists (select 1 from public.products where sku = 'NOPRICE-1') then raise exception 'ÉCHEC 2e : produit écrit'; end if;
+  raise notice 'OK 2b : prix absent refusé avec le bon message';
 end;
 $test$;
 
