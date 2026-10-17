@@ -133,28 +133,28 @@ begin
   end if;
 
   if to_regclass('public.team_audit_events') is not null then
-    v_parts := v_parts || 'select e.created_at, e.actor_user_id, ''Équipe'', e.action, coalesce(e.details ->> ''staff_role'', e.details ->> ''to''), null::numeric from public.team_audit_events e where e.site_id = $1';
+    v_parts := array_append(v_parts, 'select e.created_at, e.actor_user_id, ''Équipe'', e.action, coalesce(e.details ->> ''staff_role'', e.details ->> ''to''), null::numeric from public.team_audit_events e where e.site_id = $1');
   end if;
   if to_regclass('public.product_import_runs') is not null then
-    v_parts := v_parts || 'select r.created_at, r.actor_user_id, ''Import'', ''import_'' || r.status, r.row_count || '' ligne(s), '' || r.source, null::numeric from public.product_import_runs r where r.site_id = $1';
+    v_parts := array_append(v_parts, 'select r.created_at, r.actor_user_id, ''Import'', ''import_'' || r.status, r.row_count || '' ligne(s), '' || r.source, null::numeric from public.product_import_runs r where r.site_id = $1');
   end if;
   if to_regclass('public.storefront_publication_events') is not null then
-    v_parts := v_parts || 'select p.created_at, p.actor_user_id, ''Site public'', p.action, null, null::numeric from public.storefront_publication_events p where p.site_id = $1';
+    v_parts := array_append(v_parts, 'select p.created_at, p.actor_user_id, ''Site public'', p.action, null, null::numeric from public.storefront_publication_events p where p.site_id = $1');
   end if;
-  v_parts := v_parts || 'select m.created_at, m.actor_user_id, ''Caisse'', m.movement_type, left(m.reason, 120), m.amount from public.cash_register_movements m where m.site_id = $1 and m.movement_type in (''expense'', ''cash_in'', ''cash_out'', ''deposit'', ''refund_cash'')';
-  v_parts := v_parts || 'select m.created_at, m.actor_user_id, ''Stock'', m.movement_type, left(m.reason, 120), m.quantity_delta from public.inventory_movements m where m.site_id = $1 and m.reference_type in (''manual_entry'', ''order_void'')';
-  v_parts := v_parts || 'select coalesce(o.cancelled_at, o.updated_at), null::uuid, ''Ventes'', ''void_sale'', d.document_number, o.grand_total from public.orders o left join public.store_documents d on d.order_id = o.id and d.document_type = ''receipt'' where o.site_id = $1 and o.status = ''cancelled'' and o.sales_channel = ''pos''';
+  v_parts := array_append(v_parts, 'select m.created_at, m.actor_user_id, ''Caisse'', m.movement_type, left(m.reason, 120), m.amount from public.cash_register_movements m where m.site_id = $1 and m.movement_type in (''expense'', ''cash_in'', ''cash_out'', ''deposit'', ''refund_cash'')');
+  v_parts := array_append(v_parts, 'select m.created_at, m.actor_user_id, ''Stock'', m.movement_type, left(m.reason, 120), m.quantity_delta from public.inventory_movements m where m.site_id = $1 and m.reference_type in (''manual_entry'', ''order_void'')');
+  v_parts := array_append(v_parts, 'select coalesce(o.cancelled_at, o.updated_at), null::uuid, ''Ventes'', ''void_sale'', d.document_number, o.grand_total from public.orders o left join public.store_documents d on d.order_id = o.id and d.document_type = ''receipt'' where o.site_id = $1 and o.status = ''cancelled'' and o.sales_channel = ''pos''');
   if to_regclass('public.sale_returns') is not null then
-    v_parts := v_parts || 'select r.created_at, r.created_by, ''Ventes'', ''return'', r.document_number, r.refund_amount from public.sale_returns r where r.site_id = $1';
+    v_parts := array_append(v_parts, 'select r.created_at, r.created_by, ''Ventes'', ''return'', r.document_number, r.refund_amount from public.sale_returns r where r.site_id = $1');
   end if;
   if to_regclass('public.purchase_receipts') is not null then
-    v_parts := v_parts || 'select r.created_at, r.received_by, ''Achats'', ''receive_purchase'', po.number, null::numeric from public.purchase_receipts r join public.purchase_orders po on po.id = r.purchase_order_id where r.site_id = $1';
+    v_parts := array_append(v_parts, 'select r.created_at, r.received_by, ''Achats'', ''receive_purchase'', po.number, null::numeric from public.purchase_receipts r join public.purchase_orders po on po.id = r.purchase_order_id where r.site_id = $1');
   end if;
   if to_regclass('public.supplier_ledger') is not null then
-    v_parts := v_parts || 'select l.created_at, l.recorded_by, ''Achats'', ''supplier_payment'', l.reference, l.amount from public.supplier_ledger l where l.site_id = $1 and l.entry_type = ''payment''';
+    v_parts := array_append(v_parts, 'select l.created_at, l.recorded_by, ''Achats'', ''supplier_payment'', l.reference, l.amount from public.supplier_ledger l where l.site_id = $1 and l.entry_type = ''payment''');
   end if;
   if to_regclass('public.customer_ledger') is not null then
-    v_parts := v_parts || 'select l.created_at, l.recorded_by, ''Crédit'', case when l.override_reason is not null then ''credit_limit_override'' else l.entry_type end, coalesce(l.document_number, l.reference), l.amount from public.customer_ledger l where l.site_id = $1';
+    v_parts := array_append(v_parts, 'select l.created_at, l.recorded_by, ''Crédit'', case when l.override_reason is not null then ''credit_limit_override'' else l.entry_type end, coalesce(l.document_number, l.reference), l.amount from public.customer_ledger l where l.site_id = $1');
   end if;
 
   v_sql := format(

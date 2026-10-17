@@ -8,7 +8,7 @@
 -- Transaction terminée par ROLLBACK : aucune donnée ne reste.
 --
 -- Scénarios : export par le propriétaire (données de SA boutique seulement, réglages internes exclus) ; export
--- refusé au gérant et à une autre boutique ; journal d'audit pour le gérant, refusé au vendeur ;
+-- refusé au gérant et à une autre boutique ; journal d'audit appelé réellement par le gérant (ligne d'équipe retrouvée, filtre « avant »), refusé au vendeur ;
 -- sessions : chacun ne voit que les siennes.
 -- =============================================================================
 
@@ -34,6 +34,10 @@ insert into public.products (site_id, name, slug, status, price) values
 insert into auth.sessions (id, user_id, created_at, updated_at) values
   ('f9100000-0000-4000-8000-000000000001', 'f0100000-0000-4000-8000-000000000001', now(), now()),
   ('f9100000-0000-4000-8000-000000000002', 'f0100000-0000-4000-8000-000000000003', now(), now());
+-- Événement d'équipe : le gérant doit le retrouver dans audit_log.
+insert into public.team_audit_events (site_id, actor_user_id, target_user_id, action, details) values
+  ('f2100000-0000-4000-8000-000000000000', 'f0100000-0000-4000-8000-000000000001', 'f0100000-0000-4000-8000-000000000003',
+   'invite', '{"staff_role":"cashier"}');
 
 -- 1. Propriétaire : export de sa boutique uniquement.
 select set_config('request.jwt.claims', '{"sub":"f0100000-0000-4000-8000-000000000001","role":"authenticated"}', true);
@@ -61,7 +65,16 @@ begin
     raise exception 'ÉCHEC 2a : export par le gérant';
   exception when sqlstate '42501' then null;
   end;
-  perform * from public.audit_log('f2100000-0000-4000-8000-000000000000');
+  -- Appel réel de audit_log (assemblage dynamique des journaux) : la ligne d'équipe doit revenir.
+  if not exists (
+    select 1 from public.audit_log('f2100000-0000-4000-8000-000000000000', null, 50) a
+    where a.category = 'Équipe' and a.action = 'invite' and a.reference = 'cashier' and a.actor_name is not null
+  ) then
+    raise exception 'ÉCHEC 2c : audit_log ne renvoie pas l''invitation';
+  end if;
+  if (select count(*) from public.audit_log('f2100000-0000-4000-8000-000000000000', now() - interval '1 day', 50)) <> 0 then
+    raise exception 'ÉCHEC 2d : filtre « avant » ignoré';
+  end if;
   if exists (select 1 from public.my_auth_sessions()) then raise exception 'ÉCHEC 2b : sessions d''un autre utilisateur visibles'; end if;
   raise notice 'OK 2 : gérant';
 end;
