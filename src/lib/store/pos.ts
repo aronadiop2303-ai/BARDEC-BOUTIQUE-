@@ -355,3 +355,14 @@ export async function recordReturn(
   if (error) throw rpcError(error)
   return data as ReturnResult
 }
+
+/**
+ * Produit actif dont le code-barres (ou le SKU) correspond EXACTEMENT au code scanné : recherche immédiate,
+ * sans attendre la recherche différée (une douchette tape le code et Entrée en quelques millisecondes).
+ */
+export async function findSaleProductByCode(client: SupabaseClient, siteId: string, code: string): Promise<SaleProduct | null> {
+  if (!code) return null
+  const matches = (await searchSaleProducts(client, siteId, code))
+    .filter((p) => p.barcode === code || (p.sku ?? '').toLowerCase() === code.toLowerCase())
+  return matches.find((p) => p.barcode === code) ?? matches[0] ?? null
+}

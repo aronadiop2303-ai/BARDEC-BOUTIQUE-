@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, configure, fireEvent, render, screen, within } from '@testing-library/react'
 import { fakeSupabase, type FakeResult } from '../../test/fakeSupabase'
 import { parseRoute, storefrontPath } from '../../lib/router'
@@ -63,6 +63,7 @@ describe('vitrine publique', () => {
   it('famille : filtre transmis à la base ; recherche', async () => {
     const fake = show('category', 'cat-1', [{ data: shop }, categories, products, { data: [] }])
     await screen.findByRole('heading', { name: 'Électricité' })
+    await vi.waitFor(() => expect(fake.queries.some((q) => q.table === 'rpc:storefront_products')).toBe(true))
     const first = fake.queries.find((q) => q.table === 'rpc:storefront_products')!
     expect(fake.op(first, 'rpc')?.[0]).toEqual({ p_site_id: SITE, p_category_id: 'cat-1', p_search: null, p_limit: 24, p_offset: 0 })
     fireEvent.change(screen.getByLabelText('Rechercher un produit'), { target: { value: 'câble' } })

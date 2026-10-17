@@ -8,13 +8,15 @@ import { dayRange, formatShopDateTime, normalizeNumberSearch, paymentModes, sell
 import type { ReceiptSnapshot } from '../../domain/pos/receipt'
 import { checkDiscount, computeSaleLine, computeTotals, maxDiscountPercent, type OrderDiscount, type SaleLine } from '../../domain/pos/sale'
 import {
-  closeSession, getOpenSession, getPosSettings, isPosInstalled, listSales, openSession, recordSale, SALES_HISTORY_LIMIT, searchSaleProducts,
+  closeSession, findSaleProductByCode, getOpenSession, getPosSettings, isPosInstalled, listSales, openSession, recordSale, SALES_HISTORY_LIMIT, searchSaleProducts,
   sessionBreakdown, sessionSummary, voidSale, type CashSession, type SaleDocument, type SaleProduct, type SaleResult, type SessionSummary,
 } from '../../lib/store/pos'
 import { listUnits } from '../../lib/store/units'
 import { useAsync, useDebounced } from '../../lib/useAsync'
 import type { BoutiqueContext } from './context'
+import CameraScanner from './CameraScanner'
 import CashMovementsPanel from './CashMovementsPanel'
+import { cameraScanSupported, normalizeBarcode } from '../../domain/barcode/barcode'
 import CreditCustomerPicker from './CreditCustomerPicker'
 import { checkOverrideReason, creditDecision } from '../../domain/customers/credit'
 import { legacyToEffective } from '../../domain/team/roles'
@@ -286,9 +288,23 @@ function SaleForm({ ctx, session, units, editorLimit, onSold }: {
   const [override, setOverride] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [camera, setCamera] = useState(false)
 
   const unitById = useMemo(() => new Map(units.map((u) => [u.id, u])), [units])
   const limit = maxDiscountPercent(ctx.access.role, editorLimit)
+
+  /** Entrée (douchette USB ou clavier) ou caméra : recherche exacte immédiate par code-barres ou SKU. */
+  async function scan(raw: string) {
+    const code = normalizeBarcode(raw)
+    if (!code) return
+    try {
+      const product = await findSaleProductByCode(ctx.client, ctx.siteId, code)
+      if (product) add(product)
+      else setError(`Aucun produit actif pour le code « ${code} ».`)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Recherche impossible.')
+    }
+  }
 
   function add(product: SaleProduct) {
     const sell = product.sellUnits.find((u) => u.is_default) ?? product.sellUnits.find((u) => u.conversion_to_base === 1) ?? product.sellUnits[0]
@@ -365,13 +381,15 @@ function SaleForm({ ctx, session, units, editorLimit, onSold }: {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key !== 'Enter' || results.status !== 'ready') return
-            const exact = results.data.find((p) => p.barcode && p.barcode === search.trim())
-            if (exact) add(exact)
+            if (e.key !== 'Enter') return
+            e.preventDefault()
+            scan(search)
           }}
           placeholder="Nom, référence ou code-barres…"
         />
       </label>
+      {cameraScanSupported() && !camera && <button className="text-button" onClick={() => setCamera(true)}>Scanner avec la caméra</button>}
+      {camera && <CameraScanner onCode={(code) => { setCamera(false); scan(code) }} onClose={() => setCamera(false)} />}
       {debounced && results.status === 'ready' && results.data.length === 0 && <p className="bq-hint">Aucun produit actif ne correspond.</p>}
       {debounced && results.status === 'error' && <p className="bq-error" role="alert">{results.message}</p>}
       {debounced && results.status === 'ready' && results.data.length > 0 && (

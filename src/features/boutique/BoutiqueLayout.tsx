@@ -10,6 +10,7 @@ import FamiliesPage from './FamiliesPage'
 import ImportPage from './ImportPage'
 import PosPage from './PosPage'
 import ProductForm from './ProductForm'
+import LabelsPage from './LabelsPage'
 import ProductsPage from './ProductsPage'
 import PurchasesPage from './PurchasesPage'
 import ReportsPage from './ReportsPage'
@@ -50,6 +51,7 @@ export default function BoutiqueLayout({ ctx, section, itemId }: { ctx: Boutique
   let content
   if (!current.allowed(ctx.can)) content = <p className="bq-error" role="alert">Cette section n’est pas accessible avec votre rôle ({STAFF_ROLE_LABELS[staffRole]}).</p>
   else if (section === 'produits' && itemId === 'import') content = <ImportPage ctx={ctx} />
+  else if (section === 'produits' && itemId === 'etiquettes') content = <LabelsPage ctx={ctx} />
   else if (section === 'produits' && itemId) content = <ProductForm ctx={ctx} productId={itemId === 'nouveau' ? null : itemId} />
   else if (section === 'produits') content = <ProductsPage ctx={ctx} />
   else if (section === 'familles') content = <FamiliesPage ctx={ctx} />

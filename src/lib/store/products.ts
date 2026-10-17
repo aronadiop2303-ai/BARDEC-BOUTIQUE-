@@ -4,6 +4,7 @@ import { findDuplicateTier, validatePriceTier, type PriceTier } from '../../doma
 import { baseSellUnit, validateSellUnit, type SellUnit } from '../../domain/hardware/units'
 import { isUniqueViolation, toError, type DbError } from '../errors'
 import { slugify, withSuffix } from '../slugify'
+import { checkBarcode, normalizeBarcode } from '../../domain/barcode/barcode'
 
 export type ProductStatus = 'draft' | 'active' | 'archived'
 
@@ -153,6 +154,11 @@ export function validateProductDraft(draft: ProductDraft): string | null {
   if (!name) return 'Le nom du produit est obligatoire.'
   if (name.length > 180) return 'Le nom du produit ne doit pas dépasser 180 caractères.'
   if (parseMoney(draft.price) === null) return 'Prix de vente invalide : saisissez un montant entier en FCFA.'
+  const barcode = normalizeBarcode(draft.barcode)
+  if (barcode) {
+    const check = checkBarcode(barcode)
+    if (!check.ok) return check.message
+  }
   if (draft.sellUnits.length === 0) return 'Ajoutez au moins une unité de vente (l’unité de base, conversion = 1).'
   if (!baseSellUnit(draft.sellUnits)) return 'Une seule unité de vente doit avoir une conversion égale à 1 : c’est l’unité de base.'
   if (new Set(draft.sellUnits.map((u) => u.unit_id)).size !== draft.sellUnits.length) return 'Chaque unité de vente ne peut apparaître qu’une fois.'
@@ -179,6 +185,7 @@ export function validateProductDraft(draft: ProductDraft): string | null {
 
 function productError(error: DbError): Error {
   if (isUniqueViolation(error) && /sku/i.test(error.message)) return new Error('Cette référence (SKU) est déjà utilisée par un autre produit.')
+  if (isUniqueViolation(error) && /barcode/i.test(error.message)) return new Error('Ce code-barres est déjà utilisé par un autre produit de la boutique.')
   return toError(error)
 }
 
@@ -227,7 +234,7 @@ export async function saveProduct(
   const record = {
     name: draft.name.trim(),
     sku: clean(draft.sku),
-    barcode: clean(draft.barcode),
+    barcode: normalizeBarcode(draft.barcode) || null,
     category_id: draft.categoryId,
     status: draft.status,
     price: parseMoney(draft.price) as number,

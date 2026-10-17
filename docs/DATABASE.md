@@ -253,3 +253,7 @@ Domaines web et DNS, versions de sites publiés, extensions, intégrations, rés
 - **Rapports** (propriétaire, gérant) : `sales_report` (jour, semaine ou mois à Dakar, net des retours), `top_products`, `sales_by_seller`.
 - **Marge** (propriétaire, gérant) : `margin_report` au **coût moyen actuel** (`cost_basis = current_average_cost`), car le coût à la vente n'est pas figé. Les produits sans prix d'achat sont exclus et comptés à part.
 - L'export CSV se fait côté interface, à partir des lignes renvoyées par la base (UTF-8, « ; », virgule décimale).
+
+## Codes-barres (migration `20261018060000_barcode_unique`)
+
+**PRÉPARÉE, NON APPLIQUÉE, NON TESTÉE EN EXÉCUTION.** Branche `feat/barcodes`, test : `supabase/tests/barcode_unique.test.sql`. Migration **additive** (index unique partiel `products_site_barcode_unique` sur `(site_id, barcode)`, codes vides exclus). Elle s'arrête si des doublons existent. Voir `docs/BARCODES.md`.
