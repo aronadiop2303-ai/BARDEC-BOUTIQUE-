@@ -257,3 +257,12 @@ Domaines web et DNS, versions de sites publiés, extensions, intégrations, rés
 ## Codes-barres (migration `20261018060000_barcode_unique`)
 
 **PRÉPARÉE, NON APPLIQUÉE, NON TESTÉE EN EXÉCUTION.** Branche `feat/barcodes`, test : `supabase/tests/barcode_unique.test.sql`. Migration **additive** (index unique partiel `products_site_barcode_unique` sur `(site_id, barcode)`, codes vides exclus). Elle s'arrête si des doublons existent. Voir `docs/BARCODES.md`.
+
+## Données et sécurité (migration `20261018080000_data_security`)
+
+**PRÉPARÉE, NON APPLIQUÉE, NON TESTÉE EN EXÉCUTION.** Branche `feat/data-security`, test : `supabase/tests/data_security.test.sql`. Migration **additive** (fonctions seulement).
+
+- `export_site_data(site)` : **propriétaire seulement**. Toutes les tables de la boutique (celles qui existent), 20 000 lignes au plus par table, sans comptes d'authentification, jetons, `sites.settings`, `sites.theme` ni `payment_transactions.provider_payload`.
+- `audit_log(site, avant, limite)` : propriétaire et gérant. Journaux existants réunis (équipe, imports, publication, caisse, stock manuel, annulations, retours, réceptions, règlements, crédit) ; nom affiché de l'auteur, sans téléphone, e-mail ni adresse.
+- `my_auth_sessions()` : sessions de l'appelant seulement.
+- Recommandations 2FA, SMTP et sauvegardes : `docs/SECURITY-RECOMMANDATIONS.md`. Sujets « plus tard » : `docs/ARCHITECTURE-PLUS-TARD.md`.

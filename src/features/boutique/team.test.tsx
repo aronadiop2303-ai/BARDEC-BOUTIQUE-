@@ -108,7 +108,7 @@ describe('navigation selon le rôle', () => {
   it('livreur : tableau de bord et « Mes livraisons » vide et honnête', () => {
     const { ctx } = context('driver', [])
     render(<BoutiqueLayout ctx={ctx} section="livraisons" itemId={null} />)
-    expect(nav()).toEqual(['Tableau de bord', 'Mes livraisons'])
+    expect(nav()).toEqual(['Tableau de bord', 'Mes livraisons', 'Données et sécurité'])
     expect(screen.getByText('Aucune livraison ne vous est assignée.')).toBeTruthy()
   })
 

@@ -42,6 +42,8 @@ describe('permissions minimales par rôle', () => {
       expect(permissionsFor(role)).toMatchObject({ manageTeam: true, voidSales: true, importProducts: true, viewCosts: true, previewStorefront: true, deliveries: false })
     }
     expect(Object.entries(permissionsFor('owner')).filter(([, v]) => !v).map(([k]) => k)).toEqual(['deliveries'])
+    // Lot K : export complet réservé au propriétaire.
+    expect(permissionsFor('manager').exportData).toBe(false)
     // Lot D : publication réservée au propriétaire.
     expect(permissionsFor('owner').publish).toBe(true)
     expect(permissionsFor('manager').publish).toBe(false)

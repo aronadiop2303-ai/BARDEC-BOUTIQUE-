@@ -5,6 +5,7 @@ import { boutiquePath, type BoutiqueSection } from '../../lib/router'
 import type { BoutiqueContext } from './context'
 import Dashboard from './Dashboard'
 import CustomersPage from './CustomersPage'
+import DataSecurityPage from './DataSecurityPage'
 import DeliveriesPage from './DeliveriesPage'
 import FamiliesPage from './FamiliesPage'
 import ImportPage from './ImportPage'
@@ -34,13 +35,13 @@ const MENU: { section: BoutiqueSection; label: string; icon: typeof Package; all
   { section: 'livraisons', label: 'Mes livraisons', icon: Truck, allowed: (can) => can.deliveries || can.manageTeam },
   { section: 'equipe', label: 'Équipe', icon: UsersRound, allowed: (can) => can.manageTeam },
   { section: 'site-public', label: 'Boutique en ligne', icon: Globe2, allowed: (can) => can.previewStorefront },
+  { section: 'donnees', label: 'Données et sécurité', icon: ClipboardList, allowed: () => true },
   { section: 'parametres', label: 'Paramètres boutique', icon: Settings2, allowed: (can) => can.configure },
 ]
 
 /** Sections prévues, visibles mais inactives : aucun faux contenu. */
 const SOON: { label: string; milestone: string; icon: typeof Package }[] = [
   { label: 'Devis et documents', milestone: 'Q5', icon: FileText },
-  { label: 'Journal d’audit', milestone: 'Q6', icon: ClipboardList },
 ]
 
 export default function BoutiqueLayout({ ctx, section, itemId }: { ctx: BoutiqueContext; section: BoutiqueSection; itemId: string | null }) {
@@ -62,6 +63,7 @@ export default function BoutiqueLayout({ ctx, section, itemId }: { ctx: Boutique
   else if (section === 'clients') content = <CustomersPage ctx={ctx} />
   else if (section === 'equipe') content = <TeamPage ctx={ctx} />
   else if (section === 'livraisons') content = <DeliveriesPage ctx={ctx} />
+  else if (section === 'donnees') content = <DataSecurityPage ctx={ctx} />
   else if (section === 'site-public') content = <PublicSitePage ctx={ctx} />
   else if (section === 'parametres') content = <SettingsPage ctx={ctx} />
   else content = <Dashboard ctx={ctx} />

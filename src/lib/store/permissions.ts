@@ -51,17 +51,21 @@ export type StorePermissions = {
   reports: boolean
   /** Seuils de stock et liste « à réapprovisionner » (sans coût). */
   restockAlerts: boolean
+  /** Export complet des données : PROPRIÉTAIRE SEULEMENT. */
+  exportData: boolean
+  /** Journal d'audit en lecture. */
+  auditLog: boolean
 }
 
 const NONE: StorePermissions = {
   configure: false, editCatalog: false, archiveProducts: false, writeStock: false, viewStock: false, accessPos: false,
   sell: false, voidSales: false, importProducts: false, viewCosts: false, manageTeam: false, deliveries: false,
-  previewStorefront: false, publish: false, cashMovements: false, customers: false, manageCredit: false, returns: false, purchases: false, receivePurchases: false, reports: false, restockAlerts: false,
+  previewStorefront: false, publish: false, cashMovements: false, customers: false, manageCredit: false, returns: false, purchases: false, receivePurchases: false, reports: false, restockAlerts: false, exportData: false, auditLog: false,
 }
 
 const MATRIX: Record<EffectiveRole, StorePermissions> = {
-  owner: { ...NONE, configure: true, editCatalog: true, archiveProducts: true, writeStock: true, viewStock: true, accessPos: true, sell: true, voidSales: true, importProducts: true, viewCosts: true, manageTeam: true, previewStorefront: true, publish: true, cashMovements: true, customers: true, manageCredit: true, returns: true, purchases: true, receivePurchases: true, reports: true, restockAlerts: true },
-  manager: { ...NONE, configure: true, editCatalog: true, archiveProducts: true, writeStock: true, viewStock: true, accessPos: true, sell: true, voidSales: true, importProducts: true, viewCosts: true, manageTeam: true, previewStorefront: true, cashMovements: true, customers: true, manageCredit: true, returns: true, purchases: true, receivePurchases: true, reports: true, restockAlerts: true },
+  owner: { ...NONE, configure: true, editCatalog: true, archiveProducts: true, writeStock: true, viewStock: true, accessPos: true, sell: true, voidSales: true, importProducts: true, viewCosts: true, manageTeam: true, previewStorefront: true, publish: true, cashMovements: true, customers: true, manageCredit: true, returns: true, purchases: true, receivePurchases: true, reports: true, restockAlerts: true, exportData: true, auditLog: true },
+  manager: { ...NONE, configure: true, editCatalog: true, archiveProducts: true, writeStock: true, viewStock: true, accessPos: true, sell: true, voidSales: true, importProducts: true, viewCosts: true, manageTeam: true, previewStorefront: true, cashMovements: true, customers: true, manageCredit: true, returns: true, purchases: true, receivePurchases: true, reports: true, restockAlerts: true, auditLog: true },
   cashier: { ...NONE, viewStock: true, accessPos: true, sell: true, cashMovements: true, customers: true, returns: true },
   stock_keeper: { ...NONE, writeStock: true, viewStock: true, receivePurchases: true, restockAlerts: true },
   driver: { ...NONE, deliveries: true },
