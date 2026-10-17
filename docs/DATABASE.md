@@ -155,3 +155,12 @@ Données de référence : 4 secteurs, 4 sous-secteurs, 4 spécialités (Commerce
 ## Hors périmètre de cette migration
 
 Domaines web et DNS, versions de sites publiés, extensions, intégrations, réseaux multi-établissements, marché de modèles. Voir `docs/ROADMAP.md`.
+
+## Import de produits (migration `20261017140000_product_import`)
+
+**PRÉPARÉE, NON APPLIQUÉE, NON TESTÉE EN EXÉCUTION.** Branche `feat/product-import`, test : `supabase/tests/product_import.test.sql` (base locale jetable uniquement).
+
+- **`public.import_products(site, lignes jsonb, mode, source)`** : SECURITY DEFINER, propriétaire et admin, 1 à 1000 lignes, tout ou rien, modes `create` / `upsert` (par SKU). Stock initial par `record_stock_movement` (`initial_stock`).
+- **`public.product_costs`** : prix d'achat, table séparée de `products` (lisible par `anon` sur un site publié). Lecture propriétaire et admin, aucune écriture directe.
+- **`public.product_import_runs`** : journal (qui, quand, méthode, mode, lignes, créés, mis à jour, mouvements, résultat, erreurs). Lecture propriétaire et admin, aucune écriture directe.
+- L'écran `Produits › Importer` détecte l'absence de la migration et n'écrit rien tant qu'elle n'est pas appliquée.

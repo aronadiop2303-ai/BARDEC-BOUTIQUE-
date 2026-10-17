@@ -118,6 +118,19 @@
 .bq-confirm-number{font:800 26px Manrope;letter-spacing:.5px;color:#172944;margin:0}
 .bq-badge-void{background:#fde2e2;color:#9b1c1c;font-weight:700}
 
+/* Import de produits */
+.bq-steps{display:flex;flex-wrap:wrap;gap:8px;list-style:none;margin:0;padding:0}
+.bq-steps li{padding:4px 10px;border-radius:999px;background:#eef2f7;color:#6d7a8f;font-size:12px;font-weight:700}
+.bq-steps li.active{background:#172944;color:#fff}
+.bq-source-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.bq-source{position:relative;display:flex;flex-direction:column;gap:4px;border:1px solid #dfe5ee;border-radius:10px;padding:10px;cursor:pointer}
+.bq-source.active{border-color:#172944;box-shadow:0 0 0 1px #172944}
+.bq-source.muted{opacity:.55;cursor:not-allowed}
+.bq-source input{position:absolute;opacity:0;pointer-events:none}
+.bq-mapping{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.bq-row-error td{background:#fff5f5}
+.bq-row-error td small{display:block}
+
 /* Reçus : ticket 80 mm (zone imprimable 72 mm, police à chasse fixe) et A4 */
 .print-root{display:none}
 .receipt{color:#000;background:#fff}

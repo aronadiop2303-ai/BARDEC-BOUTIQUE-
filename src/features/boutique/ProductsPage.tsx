@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, Upload } from 'lucide-react'
 import { Empty, ErrorPanel, Loading, Pagination } from '../../components/StatePanel'
 import { formatMoney } from '../../domain/hardware/money'
 import { boutiquePath } from '../../lib/router'
@@ -35,7 +35,10 @@ export default function ProductsPage({ ctx }: { ctx: BoutiqueContext }) {
     <div className="bq-stack">
       <div className="bq-heading">
         <div><p className="eyebrow">CATALOGUE</p><h1 className="bq-title">Produits</h1></div>
-        {ctx.can.editCatalog && <a className="primary-button" href={boutiquePath(ctx.siteId, 'produits', 'nouveau')}><Plus size={16} /> Nouveau produit</a>}
+        <div className="bq-row">
+          {ctx.can.importProducts && <a className="secondary-button" href={boutiquePath(ctx.siteId, 'produits', 'import')}><Upload size={16} /> Importer</a>}
+          {ctx.can.editCatalog && <a className="primary-button" href={boutiquePath(ctx.siteId, 'produits', 'nouveau')}><Plus size={16} /> Nouveau produit</a>}
+        </div>
       </div>
 
       <div className="bq-filters">

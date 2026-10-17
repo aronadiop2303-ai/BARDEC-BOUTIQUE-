@@ -18,6 +18,8 @@ export type StorePermissions = {
   sell: boolean
   /** Annuler une vente (public.void_sale : propriétaire et admin). */
   voidSales: boolean
+  /** Importer des produits (public.import_products : propriétaire et admin). */
+  importProducts: boolean
 }
 
 export function permissionsFor(role: StoreRole): StorePermissions {
@@ -29,6 +31,7 @@ export function permissionsFor(role: StoreRole): StorePermissions {
     writeStock: manager,
     sell: manager || role === 'editor',
     voidSales: manager,
+    importProducts: manager,
   }
 }
 

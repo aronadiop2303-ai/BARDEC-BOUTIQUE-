@@ -4,6 +4,7 @@ import { ROLE_LABELS } from '../../lib/store/permissions'
 import type { BoutiqueContext } from './context'
 import Dashboard from './Dashboard'
 import FamiliesPage from './FamiliesPage'
+import ImportPage from './ImportPage'
 import PosPage from './PosPage'
 import ProductForm from './ProductForm'
 import ProductsPage from './ProductsPage'
@@ -33,7 +34,8 @@ export default function BoutiqueLayout({ ctx, section, itemId }: { ctx: Boutique
   const current = MENU.find((item) => item.section === section) ?? MENU[0]
 
   let content
-  if (section === 'produits' && itemId) content = <ProductForm ctx={ctx} productId={itemId === 'nouveau' ? null : itemId} />
+  if (section === 'produits' && itemId === 'import') content = <ImportPage ctx={ctx} />
+  else if (section === 'produits' && itemId) content = <ProductForm ctx={ctx} productId={itemId === 'nouveau' ? null : itemId} />
   else if (section === 'produits') content = <ProductsPage ctx={ctx} />
   else if (section === 'familles') content = <FamiliesPage ctx={ctx} />
   else if (section === 'stock') content = <StockPage ctx={ctx} />
